@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env*.local
+
+# Build outputs
+dist/
+build/
+.react-router/
+
+# Expo
+.expo/
+web-build/
+expo-env.d.ts
+.metro-virtual/
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Editor
+.vscode/
+.idea/
+
+# Misc
+*.pem
