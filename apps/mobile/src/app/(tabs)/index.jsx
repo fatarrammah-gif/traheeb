@@ -204,13 +204,11 @@ export default function Dashboard() {
       <View
         style={{
           overflow: "hidden",
-          borderBottomLeftRadius: 28,
-          borderBottomRightRadius: 28,
           shadowColor: "#1E000E",
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.45,
-          shadowRadius: 20,
-          elevation: 16,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.4,
+          shadowRadius: 14,
+          elevation: 14,
         }}
       >
         {/* Decorative background image */}
@@ -312,14 +310,27 @@ export default function Dashboard() {
             </View>
           </View>
 
-          {/* RIGHT: white logo — full portrait proportions (1024×1536 → 2:3) */}
-          <Image
-            source={require("../../../white_logo.png")}
-            style={{ width: 50, height: 75 }}
-            contentFit="contain"
-          />
+          {/* RIGHT: white logo — tappable, larger (2:3 ratio) */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.replace("/(tabs)")}
+          >
+            <Image
+              source={require("../../../white_logo.png")}
+              style={{ width: 70, height: 105 }}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* ── Thick luxury gold separator line ── */}
+      <LinearGradient
+        colors={["#8A004F", "#C8991A", "#FFD54F", "#FFC107", "#C8991A", "#8A004F"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ height: 4 }}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
