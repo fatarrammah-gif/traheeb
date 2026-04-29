@@ -100,10 +100,28 @@ function BannerSlider() {
           setActiveIndex(idx);
         }}
         renderItem={({ item }) => (
-          <View style={{ width, paddingHorizontal: 16, height: BANNER_H }}>
+          <View
+            style={{
+              width,
+              paddingHorizontal: 16,
+              height: BANNER_H,
+              shadowColor: "#8A004F",
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 12,
+              elevation: 6,
+            }}
+          >
             <Image
               source={{ uri: item.uri }}
-              style={{ width: "100%", height: BANNER_H, borderRadius: 14 }}
+              style={{
+                width: "100%",
+                height: BANNER_H,
+                borderTopLeftRadius: 22,
+                borderTopRightRadius: 22,
+                borderBottomLeftRadius: 14,
+                borderBottomRightRadius: 14,
+              }}
               contentFit="cover"
               transition={300}
             />
@@ -182,89 +200,75 @@ export default function Dashboard() {
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <StatusBar style="light" />
 
-      {/* ══════════════ PREMIUM LUXURY HEADER ══════════════ */}
+      {/* ══════════════ HEADER ══════════════ */}
       <View
         style={{
           overflow: "hidden",
-          borderBottomLeftRadius: 32,
-          borderBottomRightRadius: 32,
-          shadowColor: "#8A004F",
+          borderBottomLeftRadius: 28,
+          borderBottomRightRadius: 28,
+          shadowColor: "#1E000E",
           shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.28,
+          shadowOpacity: 0.45,
           shadowRadius: 20,
-          elevation: 14,
+          elevation: 16,
         }}
       >
-        {/* Layer 1 — Decorative background image */}
+        {/* Decorative background image */}
         <Image
           source={{ uri: HEADER_BG }}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
           contentFit="cover"
         />
 
-        {/* Layer 2 — Gradient overlay: #8A004F → #C2185B → #D81B72 at 135deg */}
+        {/* Darker luxury gradient overlay */}
         <LinearGradient
-          colors={["#8A004F", "#C2185B", "#D81B72"]}
-          locations={[0, 0.45, 1]}
+          colors={["#1E000E", "#55002F", "#8A004F"]}
+          locations={[0, 0.5, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            opacity: 0.8,
+            top: 0, left: 0, right: 0, bottom: 0,
+            opacity: 0.93,
           }}
         />
 
-        {/* Header Content */}
+        {/* Single compact row: Bell + Greeting (left) | Logo (right) */}
         <View
           style={{
-            paddingTop: insets.top + 14,
-            paddingHorizontal: 22,
-            paddingBottom: 32,
+            flexDirection: "row",
+            alignItems: "center",
+            paddingTop: insets.top + 10,
+            paddingHorizontal: 20,
+            paddingBottom: 16,
           }}
         >
-          {/* Top row: bell left · greeting right */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 18,
-            }}
-          >
-            {/* Notification Bell — left */}
+          {/* LEFT: bell + welcome text */}
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}>
+            {/* Bell */}
             <TouchableOpacity
               activeOpacity={0.8}
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: "rgba(255,255,255,0.15)",
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: "rgba(255,255,255,0.13)",
                 alignItems: "center",
                 justifyContent: "center",
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.25)",
+                borderColor: "rgba(255,255,255,0.22)",
               }}
             >
-              <Bell size={20} color="#FFFFFF" />
+              <Bell size={18} color="#FFFFFF" />
               {notifCount > 0 && (
                 <View
                   style={{
                     position: "absolute",
-                    top: 7,
-                    right: 7,
-                    width: 16,
-                    height: 16,
-                    borderRadius: 8,
+                    top: 6,
+                    right: 6,
+                    width: 15,
+                    height: 15,
+                    borderRadius: 7.5,
                     backgroundColor: "#F4C430",
                     alignItems: "center",
                     justifyContent: "center",
@@ -273,11 +277,7 @@ export default function Dashboard() {
                   }}
                 >
                   <Text
-                    style={{
-                      fontFamily: "Inter_700Bold",
-                      fontSize: 8,
-                      color: "#5C3A00",
-                    }}
+                    style={{ fontFamily: "Inter_700Bold", fontSize: 7, color: "#5C3A00" }}
                   >
                     {notifCount}
                   </Text>
@@ -285,25 +285,25 @@ export default function Dashboard() {
               )}
             </TouchableOpacity>
 
-            {/* Greeting — right aligned (RTL) */}
-            <View style={{ alignItems: "flex-end" }}>
+            {/* Greeting */}
+            <View>
               <Text
                 style={{
                   fontFamily: "Inter_400Regular",
-                  fontSize: 13,
-                  color: "rgba(255,255,255,0.80)",
-                  letterSpacing: 0.4,
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.72)",
+                  letterSpacing: 0.3,
                 }}
               >
-                مرحباً بك 👋
+                مرحبًا بك 👋
               </Text>
               <Text
                 style={{
                   fontFamily: "Inter_700Bold",
-                  fontSize: 20,
+                  fontSize: 18,
                   color: "#FFFFFF",
-                  letterSpacing: -0.3,
                   marginTop: 2,
+                  letterSpacing: -0.2,
                 }}
                 numberOfLines={1}
               >
@@ -312,23 +312,12 @@ export default function Dashboard() {
             </View>
           </View>
 
-          {/* Logo — centered with subtle glow ring */}
-          <View style={{ alignItems: "center", marginTop: 4, marginBottom: 2 }}>
-            <View
-              style={{
-                position: "absolute",
-                width: 118,
-                height: 118,
-                borderRadius: 59,
-                backgroundColor: "rgba(255,255,255,0.08)",
-              }}
-            />
-            <Image
-              source={{ uri: LOGO }}
-              style={{ width: 88, height: 128 }}
-              contentFit="contain"
-            />
-          </View>
+          {/* RIGHT: white logo — full portrait proportions (1024×1536 → 2:3) */}
+          <Image
+            source={require("../../../white_logo.png")}
+            style={{ width: 50, height: 75 }}
+            contentFit="contain"
+          />
         </View>
       </View>
 
