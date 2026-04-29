@@ -339,6 +339,9 @@ export default function Dashboard() {
           paddingBottom: insets.bottom + 80,
         }}
       >
+        {/* Banner Slider */}
+        <BannerSlider />
+
         {/* Stats Row */}
         <View
           style={{
@@ -403,9 +406,6 @@ export default function Dashboard() {
             </View>
           ))}
         </View>
-
-        {/* Banner Slider */}
-        <BannerSlider />
 
         {/* Section Header */}
         <View
