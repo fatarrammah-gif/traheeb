@@ -67,14 +67,20 @@ export default defineConfig({
     layoutWrapperPlugin(),
   ],
   resolve: {
-    alias: {
-      lodash: 'lodash-es',
-      'npm:stripe': 'stripe',
-      stripe: path.resolve(__dirname, './src/__create/stripe'),
-      '@auth/create/react': '@hono/auth-js/react',
-      '@auth/create': path.resolve(__dirname, './src/__create/@auth/create'),
-      '@': path.resolve(__dirname, 'src'),
-    },
+    alias: [
+      // Redirect the platform's shared/design-mode to a local stub so the
+      // build works when only apps/web is present (e.g. Railway deployment).
+      {
+        find: /.*\/shared\/design-mode$/,
+        replacement: path.resolve(__dirname, './src/_shared/design-mode'),
+      },
+      { find: 'lodash', replacement: 'lodash-es' },
+      { find: 'npm:stripe', replacement: 'stripe' },
+      { find: 'stripe', replacement: path.resolve(__dirname, './src/__create/stripe') },
+      { find: '@auth/create/react', replacement: '@hono/auth-js/react' },
+      { find: '@auth/create', replacement: path.resolve(__dirname, './src/__create/@auth/create') },
+      { find: '@', replacement: path.resolve(__dirname, 'src') },
+    ],
     dedupe: ['react', 'react-dom'],
   },
   build: {
