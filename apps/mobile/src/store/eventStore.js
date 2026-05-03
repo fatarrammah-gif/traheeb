@@ -1,151 +1,83 @@
+/**
+ * Event store — API-backed via /api/events.
+ * Zustand holds a local cache; individual screens use TanStack Query for fetching.
+ */
 import { create } from "zustand";
-
-const generateTicketId = () =>
-  "TKT-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-
-const MOCK_EVENTS = [
-  {
-    id: "1",
-    name: "مؤتمر ريادة الأعمال الخليجي 2025",
-    date: "2025-05-15",
-    time: "09:00 ص",
-    venue: "قاعة الملك فهد للمؤتمرات",
-    location: "الرياض، المملكة العربية السعودية",
-    description:
-      "مؤتمر سنوي يجمع رواد الأعمال والمستثمرين من دول الخليج لتبادل الخبرات ومناقشة أحدث التوجهات.",
-    category: "مؤتمر",
-    capacity: 200,
-    guests: [
-      {
-        id: "g1",
-        name: "أحمد العمري",
-        phone: "+966501234567",
-        status: "confirmed",
-        ticketId: "TKT-AE001",
-      },
-      {
-        id: "g2",
-        name: "نورة الشمري",
-        phone: "+966507654321",
-        status: "invited",
-        ticketId: "TKT-NS002",
-      },
-      {
-        id: "g3",
-        name: "خالد المطيري",
-        phone: "+966509876543",
-        status: "pending",
-        ticketId: "TKT-KM003",
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "حفل إطلاق منتج أفق X",
-    date: "2025-06-02",
-    time: "06:00 م",
-    venue: "برج المملكة — الطابق العلوي",
-    location: "الرياض، المملكة العربية السعودية",
-    description:
-      "حفل إطلاق حصري بحضور الصحفيين والشركاء وكبار العملاء للاطلاع على أحدث الابتكارات.",
-    category: "إطلاق",
-    capacity: 80,
-    guests: [
-      {
-        id: "g4",
-        name: "سارة الدوسري",
-        phone: "+966502345678",
-        status: "confirmed",
-        ticketId: "TKT-SD004",
-      },
-      {
-        id: "g5",
-        name: "محمد القحطاني",
-        phone: "+966508765432",
-        status: "invited",
-        ticketId: "TKT-MQ005",
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "ورشة عمل التصميم الإبداعي",
-    date: "2025-05-28",
-    time: "10:00 ص",
-    venue: "مركز الإبداع والابتكار",
-    location: "جدة، المملكة العربية السعودية",
-    description:
-      "ورشة عمل تفاعلية حول أحدث أساليب التصميم وتجربة المستخدم مع حالات دراسية من السوق الخليجية.",
-    category: "ورشة عمل",
-    capacity: 30,
-    guests: [],
-  },
-];
+import fetchToWeb from "@/__create/fetch";
 
 const useEventStore = create((set, get) => ({
-  events: MOCK_EVENTS,
+  events: [],
 
-  addEvent: (event) =>
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+
+  fetchEvents: async () => {
+    const res = await fetchToWeb("/api/events");
+    if (!res.ok) throw new Error("فشل تحميل الفعاليات");
+    const { events } = await res.json();
+    set({ events });
+    return events;
+  },
+
+  // ── Create ─────────────────────────────────────────────────────────────────
+
+  createEvent: async (payload) => {
+    const res = await fetchToWeb("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "فشل إنشاء الفعالية");
+    set((state) => ({ events: [{ ...data.event, guests: [] }, ...state.events] }));
+    return data.event;
+  },
+
+  // ── Invite guests ──────────────────────────────────────────────────────────
+
+  inviteGuests: async (eventId, guests) => {
+    // guests: [{ name, phone, companions }]
+    const res = await fetchToWeb(`/api/events/${eventId}/guests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guests }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "فشل إرسال الدعوات");
+
+    // Merge new guests into the cached event
     set((state) => ({
-      events: [
-        ...state.events,
-        { ...event, id: Date.now().toString(), guests: [] },
-      ],
-    })),
+      events: state.events.map((e) =>
+        e.id === eventId
+          ? { ...e, guests: [...(e.guests ?? []), ...data.guests] }
+          : e,
+      ),
+    }));
+    return data;
+  },
+
+  // ── Fetch single event with full guest list ────────────────────────────────
+
+  fetchEventDetail: async (eventId) => {
+    const res = await fetchToWeb(`/api/events/${eventId}`);
+    if (!res.ok) throw new Error("فشل تحميل تفاصيل الفعالية");
+    const { event, guests } = await res.json();
+    const full = { ...event, guests: guests ?? [] };
+    set((state) => ({
+      events: state.events.some((e) => e.id === eventId)
+        ? state.events.map((e) => (e.id === eventId ? full : e))
+        : [...state.events, full],
+    }));
+    return full;
+  },
+
+  // ── Local helpers ──────────────────────────────────────────────────────────
 
   getEvent: (id) => get().events.find((e) => e.id === id),
 
-  addGuestToEvent: (eventId, guest) =>
+  setEventGuests: (eventId, guests) =>
     set((state) => ({
       events: state.events.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              guests: [
-                ...e.guests,
-                {
-                  ...guest,
-                  id: Date.now().toString(),
-                  ticketId: generateTicketId(),
-                  status: "invited",
-                },
-              ],
-            }
-          : e,
-      ),
-    })),
-
-  addGuestsToEvent: (eventId, guests) =>
-    set((state) => ({
-      events: state.events.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              guests: [
-                ...e.guests,
-                ...guests.map((g) => ({
-                  ...g,
-                  id: Date.now().toString() + Math.random(),
-                  ticketId: generateTicketId(),
-                  status: "invited",
-                })),
-              ],
-            }
-          : e,
-      ),
-    })),
-
-  updateGuestStatus: (eventId, guestId, status) =>
-    set((state) => ({
-      events: state.events.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              guests: e.guests.map((g) =>
-                g.id === guestId ? { ...g, status } : g,
-              ),
-            }
-          : e,
+        e.id === eventId ? { ...e, guests } : e,
       ),
     })),
 }));

@@ -1,10 +1,9 @@
+import { useEffect, useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -16,10 +15,27 @@ import {
   Clock,
   Users,
   UserPlus,
-  QrCode,
-  Send,
+  ScanLine,
 } from "lucide-react-native";
 import useEventStore from "@/store/eventStore";
+
+/**
+ * Parse an Arabic time string like "6:00 م" or "10:00 ص" into a Date
+ * given an ISO date string like "2025-06-02".
+ */
+function parseEventDateTime(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null;
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s*([صم])/);
+  if (!match) return null;
+  let [, h, m, period] = match;
+  let hours = parseInt(h, 10);
+  const minutes = parseInt(m, 10);
+  if (period === "م" && hours !== 12) hours += 12;
+  if (period === "ص" && hours === 12) hours = 0;
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+}
 
 const C = {
   bg: "#FFFFFF",
@@ -44,14 +60,19 @@ const CATEGORY_COLORS = {
 const STATUS_CONFIG = {
   confirmed: { label: "مؤكد", dot: "#16A34A" },
   invited: { label: "مدعو", dot: "#2563EB" },
-  pending: { label: "معلق", dot: "#D97706" },
+  declined: { label: "معتذر", dot: "#EF4444" },
+  pending: { label: "معتذر", dot: "#EF4444" },
 };
 
 export default function EventDetail() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { events } = useEventStore();
+  const { events, fetchEventDetail } = useEventStore();
+
+  useEffect(() => {
+    fetchEventDetail(id).catch(() => {});
+  }, [id]);
 
   const event = events.find((e) => e.id === id);
   if (!event) {
@@ -68,19 +89,18 @@ export default function EventDetail() {
     bg: C.primarySoft,
     text: C.primary,
   };
-  const confirmed = event.guests.filter((g) => g.status === "confirmed").length;
-  const invited = event.guests.filter((g) => g.status === "invited").length;
+  const guestList = event.guests ?? [];
+  const confirmed = guestList.filter((g) => g.status === "confirmed").length;
+  const invited = guestList.filter((g) => g.status === "invited").length;
 
-  const sendWhatsApp = (guest) => {
-    const phone = guest.phone.replace(/[^0-9]/g, "");
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${guest.ticketId}`;
-    const msg = encodeURIComponent(
-      `مرحباً ${guest.name}! 🎉\n\nأنت مدعو إلى *${event.name}*.\n\n📅 ${event.date} في ${event.time}\n📍 ${event.venue}، ${event.location}\n\n🎟 رقم تذكرتك: *${guest.ticketId}*\n\nامسح رمز QR من هنا: ${qrUrl}\n\nنراك هناك!`,
-    );
-    Linking.openURL(`whatsapp://send?phone=${phone}&text=${msg}`).catch(() =>
-      Alert.alert("واتساب غير متاح", "يرجى تثبيت واتساب لإرسال الدعوات."),
-    );
-  };
+  // Show scanner button 2 hours before event start time
+  const showScanner = useMemo(() => {
+    const eventTime = parseEventDateTime(event.date, event.time);
+    if (!eventTime) return false;
+    const twoHoursBefore = new Date(eventTime.getTime() - 2 * 60 * 60 * 1000);
+    return new Date() >= twoHoursBefore;
+  }, [event.date, event.time]);
+
 
   return (
     <View style={{ flex: 1, backgroundColor: C.muted }}>
@@ -365,7 +385,7 @@ export default function EventDetail() {
           {[
             {
               label: "إجمالي الضيوف",
-              value: event.guests.length,
+              value: guestList.length,
               color: C.primary,
             },
             { label: "مؤكد", value: confirmed, color: "#16A34A" },
@@ -438,8 +458,43 @@ export default function EventDetail() {
           <UserPlus size={18} color="#FFFFFF" />
         </TouchableOpacity>
 
+        {/* Scanner Button — visible 2h before event */}
+        {showScanner && (
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/events/scanner",
+                params: { eventId: event.id },
+              })
+            }
+            style={{
+              backgroundColor: "#1A0910",
+              borderRadius: 12,
+              padding: 15,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              borderWidth: 1,
+              borderColor: "#E6D06A",
+            }}
+            activeOpacity={0.85}
+          >
+            <Text
+              style={{
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 14,
+                color: "#E6D06A",
+              }}
+            >
+              مسح رموز QR عند الدخول
+            </Text>
+            <ScanLine size={18} color="#E6D06A" />
+          </TouchableOpacity>
+        )}
+
         {/* Guest List */}
-        {event.guests.length > 0 && (
+        {guestList.length > 0 && (
           <View
             style={{
               backgroundColor: C.bg,
@@ -467,7 +522,7 @@ export default function EventDetail() {
                   color: C.fgMuted,
                 }}
               >
-                {event.guests.length} ضيف
+                {guestList.length} ضيف
               </Text>
               <Text
                 style={{
@@ -480,7 +535,7 @@ export default function EventDetail() {
               </Text>
             </View>
 
-            {event.guests.map((guest, i) => {
+            {guestList.map((guest, i) => {
               const sc = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
               return (
                 <View
@@ -490,48 +545,36 @@ export default function EventDetail() {
                     alignItems: "center",
                     paddingHorizontal: 16,
                     paddingVertical: 13,
-                    borderBottomWidth: i < event.guests.length - 1 ? 1 : 0,
+                    borderBottomWidth: i < guestList.length - 1 ? 1 : 0,
                     borderBottomColor: C.border,
                   }}
                 >
-                  {/* Action Buttons */}
-                  <View style={{ flexDirection: "row", gap: 6 }}>
-                    <TouchableOpacity
-                      onPress={() =>
-                        router.push({
-                          pathname: "/(tabs)/events/barcode",
-                          params: { eventId: event.id, guestId: guest.id },
-                        })
-                      }
+                  {/* Companions tag */}
+                  {(guest.companions || 0) > 0 && (
+                    <View
                       style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
                         borderWidth: 1,
-                        borderColor: C.border,
+                        borderColor: "#E6D06A",
+                        borderRadius: 999,
+                        paddingHorizontal: 9,
+                        paddingVertical: 4,
+                        flexDirection: "row",
                         alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: C.muted,
+                        gap: 4,
+                        marginRight: 6,
                       }}
                     >
-                      <QrCode size={14} color={C.fgMuted} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => sendWhatsApp(guest)}
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: "#BFDBFE",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: C.primarySoft,
-                      }}
-                    >
-                      <Send size={13} color={C.primary} />
-                    </TouchableOpacity>
-                  </View>
+                      <Text
+                        style={{
+                          fontFamily: "Inter_500Medium",
+                          fontSize: 11,
+                          color: "#A07810",
+                        }}
+                      >
+                        {guest.companions} مرافق
+                      </Text>
+                    </View>
+                  )}
 
                   {/* Status pill */}
                   <View
@@ -619,7 +662,7 @@ export default function EventDetail() {
           </View>
         )}
 
-        {event.guests.length === 0 && (
+        {guestList.length === 0 && (
           <View
             style={{
               backgroundColor: C.bg,

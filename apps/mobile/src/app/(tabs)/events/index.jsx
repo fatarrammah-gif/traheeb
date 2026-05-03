@@ -63,7 +63,7 @@ export default function EventsList() {
     CATEGORY_COLORS[cat] || { bg: C.primarySoft, text: C.primary };
 
   const getConfirmedCount = (guests) =>
-    guests.filter((g) => g.status === "confirmed").length;
+    (guests ?? []).filter((g) => g.status === "confirmed").length;
 
   return (
     <KeyboardAvoidingAnimatedView

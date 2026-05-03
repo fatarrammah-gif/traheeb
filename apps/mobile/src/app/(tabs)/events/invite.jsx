@@ -13,7 +13,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as Contacts from "expo-contacts";
-import { ArrowLeft, Search, Check, Send, Users } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Search,
+  Check,
+  Send,
+  Users,
+  Plus,
+  Minus,
+  X,
+} from "lucide-react-native";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import useEventStore from "@/store/eventStore";
 
@@ -31,16 +40,18 @@ export default function InviteContacts() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { eventId } = useLocalSearchParams();
-  const { events, addGuestsToEvent } = useEventStore();
+  const { events, inviteGuests } = useEventStore();
 
   const event = events.find((e) => e.id === eventId);
 
   const [contacts, setContacts] = useState([]);
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState([]);
+  // selectedMap: { [contactId]: { contact, displayName, companions } }
+  const [selectedMap, setSelectedMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reviewMode, setReviewMode] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -65,54 +76,74 @@ export default function InviteContacts() {
     c.name.toLowerCase().includes(search.toLowerCase()),
   );
 
+  const selectedList = Object.values(selectedMap);
+  const selectedCount = selectedList.length;
+
   const toggleSelect = (contact) => {
-    setSelected((prev) =>
-      prev.find((c) => c.id === contact.id)
-        ? prev.filter((c) => c.id !== contact.id)
-        : [...prev, contact],
-    );
+    setSelectedMap((prev) => {
+      if (prev[contact.id]) {
+        const next = { ...prev };
+        delete next[contact.id];
+        return next;
+      }
+      return {
+        ...prev,
+        [contact.id]: { contact, displayName: contact.name, companions: 0 },
+      };
+    });
   };
 
-  const isSelected = (contact) => !!selected.find((c) => c.id === contact.id);
+  const isSelected = (contact) => !!selectedMap[contact.id];
+
+  const updateDisplayName = (contactId, name) => {
+    setSelectedMap((prev) => ({
+      ...prev,
+      [contactId]: { ...prev[contactId], displayName: name },
+    }));
+  };
+
+  const updateCompanions = (contactId, delta) => {
+    setSelectedMap((prev) => ({
+      ...prev,
+      [contactId]: {
+        ...prev[contactId],
+        companions: Math.max(0, (prev[contactId]?.companions || 0) + delta),
+      },
+    }));
+  };
+
+  const removeFromSelected = (contactId) => {
+    setSelectedMap((prev) => {
+      const next = { ...prev };
+      delete next[contactId];
+      return next;
+    });
+  };
 
   const sendInvitations = useCallback(async () => {
-    if (!event || selected.length === 0) return;
-
+    if (!event || selectedList.length === 0) return;
     setSending(true);
 
-    const newGuests = selected.map((c) => ({
-      id: c.id,
-      name: c.name,
-      phone: c.phoneNumbers[0].number,
-    }));
+    try {
+      const guests = selectedList.map(({ contact, displayName, companions }) => ({
+        name: displayName,
+        phone: contact.phoneNumbers[0].number,
+        companions,
+      }));
 
-    addGuestsToEvent(eventId, newGuests);
+      await inviteGuests(eventId, guests);
 
-    const delay = (ms) => new Promise((res) => setTimeout(res, ms));
-
-    for (const contact of selected) {
-      const phone = contact.phoneNumbers[0].number.replace(/[^0-9]/g, "");
-      const ticketId =
-        "TKT-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketId}`;
-      const msg = encodeURIComponent(
-        `مرحباً ${contact.name}! 🎉\n\nأنت مدعو إلى *${event.name}*.\n\n📅 ${event.date} في ${event.time}\n📍 ${event.venue}، ${event.location}\n\n🎟 رقم التذكرة: *${ticketId}*\nرمز QR: ${qrUrl}\n\nنراك هناك!`,
+      Alert.alert(
+        "تم إرسال الدعوات!",
+        `سيتم إرسال ${selectedList.length} دعوة عبر واتساب.`,
+        [{ text: "حسناً", onPress: () => router.back() }],
       );
-      const url = `whatsapp://send?phone=${phone}&text=${msg}`;
-      const canOpen = await Linking.canOpenURL(url).catch(() => false);
-      if (canOpen) {
-        await Linking.openURL(url);
-        await delay(1200);
-      }
+    } catch (err) {
+      Alert.alert("خطأ", err.message || "تعذر إرسال الدعوات. حاول مجدداً.");
+    } finally {
+      setSending(false);
     }
-
-    setSending(false);
-    Alert.alert(
-      "تم إرسال الدعوات!",
-      `تم إرسال ${selected.length} دعوة عبر واتساب.`,
-      [{ text: "حسناً", onPress: () => router.back() }],
-    );
-  }, [event, selected, eventId, addGuestsToEvent, router]);
+  }, [event, selectedList, eventId, inviteGuests, router]);
 
   if (!event) {
     return (
@@ -124,6 +155,297 @@ export default function InviteContacts() {
     );
   }
 
+  /* ══════════════════════════════════════════
+     STEP 2 — REVIEW: edit names + companions
+  ══════════════════════════════════════════ */
+  if (reviewMode) {
+    return (
+      <KeyboardAvoidingAnimatedView
+        style={{ flex: 1, backgroundColor: C.muted }}
+        behavior="padding"
+      >
+        <StatusBar style="dark" />
+
+        {/* Header */}
+        <View
+          style={{
+            backgroundColor: C.bg,
+            paddingTop: insets.top + 8,
+            paddingHorizontal: 20,
+            paddingBottom: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: C.border,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => setReviewMode(false)}
+              activeOpacity={0.7}
+            >
+              <ArrowLeft size={22} color={C.fg} />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontFamily: "Inter_600SemiBold",
+                  fontSize: 16,
+                  color: C.fg,
+                  textAlign: "right",
+                }}
+              >
+                مراجعة قائمة المدعوين
+              </Text>
+              <Text
+                style={{
+                  fontFamily: "Inter_400Regular",
+                  fontSize: 11,
+                  color: C.fgMuted,
+                  marginTop: 2,
+                  textAlign: "right",
+                }}
+              >
+                {selectedCount} {selectedCount === 1 ? "ضيف" : "ضيوف"} — عدّل
+                الأسماء وحدد عدد المرافقين
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            padding: 16,
+            paddingBottom: insets.bottom + 100,
+            gap: 12,
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {selectedList.map(({ contact, displayName, companions }) => (
+            <View
+              key={contact.id}
+              style={{
+                backgroundColor: C.bg,
+                borderWidth: 1,
+                borderColor: C.border,
+                borderRadius: 14,
+                padding: 16,
+              }}
+            >
+              {/* Row header: label + remove */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    removeFromSelected(contact.id);
+                    if (selectedCount === 1) setReviewMode(false);
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <X size={13} color="#EF4444" />
+                  <Text
+                    style={{
+                      fontFamily: "Inter_500Medium",
+                      fontSize: 12,
+                      color: "#EF4444",
+                    }}
+                  >
+                    حذف
+                  </Text>
+                </TouchableOpacity>
+                <Text
+                  style={{
+                    fontFamily: "Inter_400Regular",
+                    fontSize: 11,
+                    color: C.fgMuted,
+                  }}
+                >
+                  اسم المدعو
+                </Text>
+              </View>
+
+              {/* Editable name */}
+              <TextInput
+                value={displayName}
+                onChangeText={(v) => updateDisplayName(contact.id, v)}
+                style={{
+                  borderWidth: 1,
+                  borderColor: C.border,
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  fontFamily: "Inter_400Regular",
+                  fontSize: 14,
+                  color: C.fg,
+                  textAlign: "right",
+                  backgroundColor: C.muted,
+                  marginBottom: 8,
+                }}
+              />
+
+              {/* Phone */}
+              <Text
+                style={{
+                  fontFamily: "Inter_400Regular",
+                  fontSize: 11,
+                  color: C.fgMuted,
+                  textAlign: "right",
+                  marginBottom: 16,
+                }}
+              >
+                {contact.phoneNumbers[0]?.number}
+              </Text>
+
+              {/* Companions counter */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor: C.muted,
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 18,
+                  }}
+                >
+                  {/* Plus */}
+                  <TouchableOpacity
+                    onPress={() => updateCompanions(contact.id, 1)}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: C.primarySoft,
+                      borderWidth: 1,
+                      borderColor: "#BFDBFE",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Plus size={16} color={C.primary} />
+                  </TouchableOpacity>
+
+                  {/* Count */}
+                  <Text
+                    style={{
+                      fontFamily: "Inter_700Bold",
+                      fontSize: 20,
+                      color: C.fg,
+                      minWidth: 28,
+                      textAlign: "center",
+                    }}
+                  >
+                    {companions}
+                  </Text>
+
+                  {/* Minus */}
+                  <TouchableOpacity
+                    onPress={() => updateCompanions(contact.id, -1)}
+                    disabled={companions === 0}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: companions === 0 ? C.muted : "#FEF2F2",
+                      borderWidth: 1,
+                      borderColor:
+                        companions === 0 ? C.border : "#FECACA",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Minus
+                      size={16}
+                      color={companions === 0 ? C.fgMuted : "#EF4444"}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <Text
+                  style={{
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 13,
+                    color: C.fgMuted,
+                  }}
+                >
+                  عدد المرافقين
+                </Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Bottom Send */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: C.bg,
+            borderTopWidth: 1,
+            borderTopColor: C.border,
+            padding: 16,
+            paddingBottom: insets.bottom + 12,
+          }}
+        >
+          <TouchableOpacity
+            onPress={sendInvitations}
+            disabled={sending}
+            style={{
+              backgroundColor: sending ? "#93C5FD" : C.primary,
+              borderRadius: 12,
+              padding: 15,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+            activeOpacity={0.85}
+          >
+            {sending ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <>
+                <Text
+                  style={{
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 15,
+                    color: "#FFF",
+                  }}
+                >
+                  إرسال {selectedCount} دعوة عبر واتساب
+                </Text>
+                <Send size={16} color="#FFF" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingAnimatedView>
+    );
+  }
+
+  /* ══════════════════════════════════════════
+     STEP 1 — SELECT CONTACTS
+  ══════════════════════════════════════════ */
   return (
     <KeyboardAvoidingAnimatedView
       style={{ flex: 1, backgroundColor: C.muted }}
@@ -176,7 +498,7 @@ export default function InviteContacts() {
               {event.name}
             </Text>
           </View>
-          {selected.length > 0 && (
+          {selectedCount > 0 && (
             <View
               style={{
                 backgroundColor: C.primary,
@@ -192,7 +514,7 @@ export default function InviteContacts() {
                   color: "#FFF",
                 }}
               >
-                {selected.length} محدد
+                {selectedCount} محدد
               </Text>
             </View>
           )}
@@ -368,7 +690,7 @@ export default function InviteContacts() {
                     backgroundColor: sel ? C.primarySoft : C.bg,
                   }}
                 >
-                  {/* Selected indicator */}
+                  {/* Selected pill */}
                   {sel && (
                     <View
                       style={{
@@ -452,8 +774,8 @@ export default function InviteContacts() {
         </ScrollView>
       )}
 
-      {/* Bottom Send Bar */}
-      {selected.length > 0 && (
+      {/* Bottom bar — opens review step */}
+      {selectedCount > 0 && (
         <View
           style={{
             position: "absolute",
@@ -467,61 +789,10 @@ export default function InviteContacts() {
             paddingBottom: insets.bottom + 12,
           }}
         >
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: C.border,
-              borderRadius: 10,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              marginBottom: 12,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontFamily: "Inter_500Medium",
-                  fontSize: 12,
-                  color: C.fg,
-                  textAlign: "right",
-                }}
-              >
-                سيتلقى {selected.length}{" "}
-                {selected.length === 1 ? "ضيف" : "ضيوف"} دعوات عبر واتساب
-              </Text>
-              <Text
-                style={{
-                  fontFamily: "Inter_400Regular",
-                  fontSize: 11,
-                  color: C.fgMuted,
-                  marginTop: 2,
-                  textAlign: "right",
-                }}
-              >
-                بما في ذلك رمز QR الخاص بالتذكرة
-              </Text>
-            </View>
-            <View
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 999,
-                backgroundColor: "#ECFDF5",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Send size={12} color="#16A34A" />
-            </View>
-          </View>
           <TouchableOpacity
-            onPress={sendInvitations}
-            disabled={sending}
+            onPress={() => setReviewMode(true)}
             style={{
-              backgroundColor: sending ? "#93C5FD" : C.primary,
+              backgroundColor: C.primary,
               borderRadius: 12,
               padding: 15,
               flexDirection: "row",
@@ -531,22 +802,16 @@ export default function InviteContacts() {
             }}
             activeOpacity={0.85}
           >
-            {sending ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <>
-                <Text
-                  style={{
-                    fontFamily: "Inter_600SemiBold",
-                    fontSize: 15,
-                    color: "#FFF",
-                  }}
-                >
-                  إرسال {selected.length} دعوة عبر واتساب
-                </Text>
-                <Send size={16} color="#FFF" />
-              </>
-            )}
+            <Text
+              style={{
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 15,
+                color: "#FFF",
+              }}
+            >
+              مراجعة وإرسال ({selectedCount})
+            </Text>
+            <Send size={16} color="#FFF" />
           </TouchableOpacity>
         </View>
       )}

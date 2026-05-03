@@ -3,15 +3,13 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  Linking,
   Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Image } from "expo-image";
-import { ArrowLeft, Share2, Send, Copy } from "lucide-react-native";
-import * as Clipboard from "expo-clipboard";
+import { ArrowLeft, Share2 } from "lucide-react-native";
 import useEventStore from "@/store/eventStore";
 
 const C = {
@@ -37,7 +35,7 @@ export default function BarcodeScreen() {
   const { events } = useEventStore();
 
   const event = events.find((e) => e.id === eventId);
-  const guest = event?.guests.find((g) => g.id === guestId);
+  const guest = event?.guests?.find((g) => g.id === guestId);
 
   if (!event || !guest) {
     return (
@@ -56,27 +54,14 @@ export default function BarcodeScreen() {
     );
   }
 
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${guest.ticketId}&bgcolor=ffffff&color=111827&margin=2`;
-  const sc = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
-
-  const sendViaWhatsApp = () => {
-    const phone = guest.phone.replace(/[^0-9]/g, "");
-    const msg = encodeURIComponent(
-      `مرحباً ${guest.name}! 🎉\n\nإليك تذكرتك لفعالية *${event.name}*.\n\n📅 ${event.date} في ${event.time}\n📍 ${event.venue}، ${event.location}\n\n🎟 رقم التذكرة: *${guest.ticketId}*\n\nرمز QR: ${qrUrl}\n\nيرجى إظهاره عند المدخل. نراك هناك!`,
-    );
-    Linking.openURL(`whatsapp://send?phone=${phone}&text=${msg}`).catch(() =>
-      Alert.alert("واتساب غير متاح", "يرجى تثبيت واتساب لمشاركة هذه التذكرة."),
-    );
-  };
-
-  const copyTicketId = async () => {
-    await Clipboard.setStringAsync(guest.ticketId);
-    Alert.alert("تم النسخ!", `تم نسخ رقم التذكرة ${guest.ticketId}.`);
-  };
+  // Use styled QR from DB if available, otherwise a placeholder
+  const mainQrToken = guest?.qr_tokens?.[0];
+  const qrUrl = mainQrToken?.qr_url ?? null;
+  const sc = STATUS_CONFIG[guest?.status] || STATUS_CONFIG.pending;
 
   const shareTicket = async () => {
     await Share.share({
-      message: `🎟 تذكرة ${guest.name} لفعالية ${event.name}\n\nرقم التذكرة: ${guest.ticketId}\nالتاريخ: ${event.date} في ${event.time}\nالمكان: ${event.venue}\n\nرمز QR: ${qrUrl}`,
+      message: `🎟 تذكرة ${guest.name} لفعالية ${event.name}\n\nالتاريخ: ${event.date} في ${event.time}\nالمكان: ${event.venue}`,
       title: `تذكرة — ${event.name}`,
     });
   };
@@ -318,86 +303,37 @@ export default function BarcodeScreen() {
                 borderRadius: 12,
                 padding: 12,
                 backgroundColor: C.bg,
-                marginBottom: 20,
-              }}
-            >
-              <Image
-                source={{ uri: qrUrl }}
-                style={{ width: 220, height: 220, borderRadius: 4 }}
-                contentFit="contain"
-                placeholder={{ color: C.muted }}
-              />
-            </View>
-
-            {/* Ticket ID */}
-            <TouchableOpacity
-              onPress={copyTicketId}
-              style={{
-                borderWidth: 1,
-                borderColor: C.border,
-                borderRadius: 8,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                flexDirection: "row",
+                marginBottom: 12,
                 alignItems: "center",
-                gap: 8,
-                backgroundColor: C.muted,
-              }}
-              activeOpacity={0.7}
-            >
-              <Copy size={14} color={C.fgMuted} />
-              <Text
-                style={{
-                  fontFamily: "Inter_600SemiBold",
-                  fontSize: 15,
-                  color: C.fg,
-                  letterSpacing: 1,
-                }}
-              >
-                {guest.ticketId}
-              </Text>
-            </TouchableOpacity>
-
-            <Text
-              style={{
-                fontFamily: "Inter_400Regular",
-                fontSize: 11,
-                color: C.fgMuted,
-                marginTop: 8,
+                justifyContent: "center",
+                minHeight: 244,
               }}
             >
-              اضغط لنسخ رقم التذكرة
-            </Text>
+              {qrUrl ? (
+                <Image
+                  source={{ uri: qrUrl }}
+                  style={{ width: 220, height: 220, borderRadius: 4 }}
+                  contentFit="contain"
+                />
+              ) : (
+                <Text
+                  style={{
+                    fontFamily: "Inter_400Regular",
+                    fontSize: 13,
+                    color: C.fgMuted,
+                    textAlign: "center",
+                    padding: 20,
+                  }}
+                >
+                  سيصلك رمز QR عبر واتساب بعد تأكيد الحضور
+                </Text>
+              )}
+            </View>
           </View>
         </View>
 
         {/* Actions */}
         <View style={{ width: "100%", gap: 10, marginTop: 16 }}>
-          <TouchableOpacity
-            onPress={sendViaWhatsApp}
-            style={{
-              backgroundColor: "#16A34A",
-              borderRadius: 12,
-              padding: 15,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-            activeOpacity={0.85}
-          >
-            <Text
-              style={{
-                fontFamily: "Inter_600SemiBold",
-                fontSize: 14,
-                color: "#FFF",
-              }}
-            >
-              إرسال عبر واتساب
-            </Text>
-            <Send size={17} color="#FFF" />
-          </TouchableOpacity>
-
           <TouchableOpacity
             onPress={shareTicket}
             style={{

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,11 @@ import {
   FlatList,
   Dimensions,
   ActivityIndicator,
-  Linking,
+  BackHandler,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Image } from "expo-image";
 import { Calendar } from "react-native-calendars";
@@ -159,7 +160,8 @@ function SectionCard({ title, children }) {
 export default function CreateEvent() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { addEvent } = useEventStore();
+  const navigation = useNavigation();
+  const { createEvent } = useEventStore();
   const { user } = useAppAuthStore();
   const [upload, { loading: uploading }] = useUpload();
 
@@ -189,6 +191,91 @@ export default function CreateEvent() {
   const [catOpen, setCatOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Mark form dirty when any field has user input
+  useEffect(() => {
+    const dirty = !!(
+      form.name.trim() ||
+      form.date ||
+      form.time ||
+      form.venue.trim() ||
+      form.capacity
+    );
+    setIsDirty(dirty);
+  }, [form.name, form.date, form.time, form.venue, form.capacity]);
+
+  // Leave confirmation modal state
+  const [leaveModalVisible, setLeaveModalVisible] = useState(false);
+  const pendingLeaveAction = useRef(null); // called only on confirmed leave
+
+  const FORM_RESET = {
+    name: "", date: "", time: "", category: "مؤتمر",
+    capacity: "", venue: "", location: "", mapCoords: null,
+    invitationText: "", reminder: "24hours",
+    eventLogo: null, invitationMedia: null, qrBackground: null,
+  };
+
+  // "Stay here" — just close the modal, everything stays
+  const handleStay = useCallback(() => {
+    setLeaveModalVisible(false);
+    pendingLeaveAction.current = null;
+    // If blur fired (user switched tab), navigate back to create
+    router.push("/(tabs)/create");
+  }, [router]);
+
+  // "Leave" — reset form then execute pending navigation
+  const doLeave = useCallback(() => {
+    setLeaveModalVisible(false);
+    setForm(FORM_RESET);
+    setIsDirty(false);
+    const action = pendingLeaveAction.current;
+    pendingLeaveAction.current = null;
+    action?.();
+  }, []);
+
+  // Gate for any outbound navigation: shows modal if dirty
+  const requestLeave = useCallback(
+    (onConfirmedLeave) => {
+      if (!isDirty) {
+        onConfirmedLeave?.();
+        return;
+      }
+      pendingLeaveAction.current = onConfirmedLeave ?? null;
+      setLeaveModalVisible(true);
+    },
+    [isDirty],
+  );
+
+  // Leave guard: intercept Android back + tab switches
+  useFocusEffect(
+    useCallback(() => {
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          if (isDirty) {
+            pendingLeaveAction.current = () => router.back();
+            setLeaveModalVisible(true);
+            return true; // prevent default back
+          }
+          return false;
+        },
+      );
+
+      const blurUnsub = navigation.addListener("blur", () => {
+        if (isDirty) {
+          // user already navigated away; on "stay" we'll push back
+          pendingLeaveAction.current = null;
+          setLeaveModalVisible(true);
+        }
+      });
+
+      return () => {
+        backHandler.remove();
+        blurUnsub();
+      };
+    }, [isDirty, navigation, router]),
+  );
 
   const [mapRegion, setMapRegion] = useState({
     latitude: 24.7136,
@@ -282,25 +369,13 @@ export default function CreateEvent() {
 
   const uploadAsset = async (asset) => {
     if (!asset) return null;
+    // Skip upload if Uploadcare is not configured (local dev)
+    if (!process.env.EXPO_PUBLIC_UPLOADCARE_PUBLIC_KEY) return null;
     const { url, error } = await upload({ reactNativeAsset: asset });
     if (error) throw new Error(error);
     return url;
   };
 
-  // ── WhatsApp confirmation ──
-  const sendConfirmation = useCallback(
-    (eventName) => {
-      if (!user?.phone) return;
-      const phone = user.phone.replace(/[^0-9]/g, "");
-      const msg = encodeURIComponent(
-        `✅ تم إضافة الفعالية بنجاح!\n\n📋 *${eventName}*\n\nيمكنك الآن إدارة ضيوفك وإرسال الدعوات من تراحيب. 🎉`,
-      );
-      Linking.openURL(`whatsapp://send?phone=${phone}&text=${msg}`).catch(
-        () => {},
-      );
-    },
-    [user],
-  );
 
   // ── Save ──
   const handleSave = async () => {
@@ -312,8 +387,16 @@ export default function CreateEvent() {
       Alert.alert("حقل مطلوب", "يرجى اختيار التاريخ من التقويم.");
       return;
     }
+    if (!form.time) {
+      Alert.alert("حقل مطلوب", "يرجى اختيار وقت الفعالية.");
+      return;
+    }
     if (!form.venue.trim()) {
       Alert.alert("حقل مطلوب", "يرجى إدخال اسم المكان.");
+      return;
+    }
+    if (!form.capacity.trim()) {
+      Alert.alert("حقل مطلوب", "يرجى إدخال عدد المدعوين.");
       return;
     }
     setSaving(true);
@@ -323,14 +406,23 @@ export default function CreateEvent() {
         uploadAsset(form.invitationMedia),
         uploadAsset(form.qrBackground),
       ]);
-      addEvent({
-        ...form,
+      await createEvent({
+        name: form.name,
+        date: form.date,
+        time: form.time,
+        category: form.category,
         capacity: parseInt(form.capacity) || 100,
-        eventLogoUrl: logoUrl,
-        invitationMediaUrl: mediaUrl,
-        qrBackgroundUrl: qrBgUrl,
+        venue: form.venue,
+        location: form.location || null,
+        map_lat: form.mapCoords?.latitude ?? null,
+        map_lng: form.mapCoords?.longitude ?? null,
+        invitation_text: form.invitationText || null,
+        reminder: form.reminder,
+        event_logo_url: logoUrl ?? null,
+        invitation_media_url: mediaUrl ?? null,
+        qr_background_url: qrBgUrl ?? null,
       });
-      sendConfirmation(form.name);
+      setIsDirty(false);
       Alert.alert("تمت الإضافة! 🎉", `تم حفظ "${form.name}" بنجاح.`, [
         { text: "عرض الفعاليات", onPress: () => router.push("/(tabs)/events") },
         { text: "إنشاء أخرى", style: "cancel" },
@@ -479,46 +571,71 @@ export default function CreateEvent() {
       style={{ flex: 1, backgroundColor: T.bg }}
       behavior="padding"
     >
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       {/* ── Header ── */}
       <View
         style={{
-          backgroundColor: T.surface,
-          paddingTop: insets.top + 8,
-          paddingHorizontal: 20,
-          paddingBottom: 14,
-          borderBottomWidth: 1,
-          borderBottomColor: T.border,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
+          overflow: "hidden",
+          shadowColor: "#1E000E",
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.4,
+          shadowRadius: 14,
+          elevation: 14,
         }}
       >
-        <View style={{ width: 36 }} />
-        <View style={{ alignItems: "center" }}>
-          <Text
-            style={{ fontFamily: "Inter_700Bold", fontSize: 16, color: T.text }}
+        <LinearGradient
+          colors={["#1E000E", "#55002F", "#8A004F"]}
+          locations={[0, 0.5, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            paddingTop: insets.top + 10,
+            paddingHorizontal: 20,
+            paddingBottom: 14,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ width: 70 }} />
+          <View style={{ alignItems: "center" }}>
+            <Text
+              style={{ fontFamily: "Inter_700Bold", fontSize: 22, color: "#FFFFFF" }}
+            >
+              إنشاء فعالية
+            </Text>
+            <Text
+              style={{
+                fontFamily: "Inter_400Regular",
+                fontSize: 11,
+                color: "rgba(255,255,255,0.72)",
+                marginTop: 2,
+              }}
+            >
+              ادخل تفاصيل الفعالية الجديدة
+            </Text>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => requestLeave(() => router.replace("/(tabs)"))}
           >
-            إنشاء فعالية
-          </Text>
-          <Text
-            style={{
-              fontFamily: "Inter_400Regular",
-              fontSize: 11,
-              color: T.muted,
-              marginTop: 1,
-            }}
-          >
-            ادخل تفاصيل الفعالية الجديدة
-          </Text>
-        </View>
-        <Image
-          source={{ uri: LOGO }}
-          style={{ width: 52, height: 76 }}
-          contentFit="contain"
-        />
+            <Image
+              source={require("../../../white_logo.png")}
+              style={{ width: 70, height: 105 }}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
+        </LinearGradient>
       </View>
+
+      {/* Thick luxury gold separator */}
+      <LinearGradient
+        colors={["#8A004F", "#C8991A", "#FFD54F", "#FFC107", "#C8991A", "#8A004F"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ height: 4 }}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -543,7 +660,7 @@ export default function CreateEvent() {
           {/* Date + Time */}
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Field label="الوقت">
+              <Field label="الوقت" required>
                 <TouchableOpacity
                   style={pickerRow}
                   onPress={() => setTimeOpen(true)}
@@ -658,7 +775,7 @@ export default function CreateEvent() {
             )}
           </Field>
 
-          <Field label="السعة (عدد المدعوين)">
+          <Field label="عدد المدعوين" required>
             <TextInput
               style={inputStyle}
               placeholder="مثال: 150"
@@ -1223,6 +1340,121 @@ export default function CreateEvent() {
                 {markerCoords ? "تأكيد الموقع" : "اضغط على الخريطة أولاً"}
               </Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ════════ LEAVE CONFIRMATION MODAL ════════ */}
+      <Modal visible={leaveModalVisible} transparent animationType="fade">
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(26,9,16,0.6)",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 28,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: T.surface,
+              borderRadius: 22,
+              padding: 28,
+              width: "100%",
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 24,
+              elevation: 24,
+            }}
+          >
+            {/* Icon */}
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: "#FFF1F2",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Text style={{ fontSize: 26 }}>⚠️</Text>
+            </View>
+
+            <Text
+              style={{
+                fontFamily: "Inter_700Bold",
+                fontSize: 18,
+                color: T.text,
+                textAlign: "center",
+                marginBottom: 10,
+              }}
+            >
+              هل تريد مغادرة الصفحة؟
+            </Text>
+            <Text
+              style={{
+                fontFamily: "Inter_400Regular",
+                fontSize: 13,
+                color: T.muted,
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: 26,
+              }}
+            >
+              لديك بيانات لم يتم حفظها. ستُفقد جميع البيانات المدخلة عند المغادرة.
+            </Text>
+
+            {/* Buttons */}
+            <View style={{ flexDirection: "row", gap: 12, width: "100%" }}>
+              <TouchableOpacity
+                onPress={doLeave}
+                style={{
+                  flex: 1,
+                  borderWidth: 1.5,
+                  borderColor: "#EF4444",
+                  borderRadius: 14,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                }}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 14,
+                    color: "#EF4444",
+                  }}
+                >
+                  نعم، مغادرة
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleStay}
+                style={{
+                  flex: 1,
+                  backgroundColor: T.primary,
+                  borderRadius: 14,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                }}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 14,
+                    color: "#FFFFFF",
+                  }}
+                >
+                  لا، ابقَ هنا
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

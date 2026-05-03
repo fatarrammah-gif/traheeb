@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Linking,
   ActivityIndicator,
   Modal,
   FlatList,
@@ -19,12 +18,12 @@ import { Image } from "expo-image";
 import { ChevronDown, Search, X } from "lucide-react-native";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import useAppAuthStore from "@/store/appAuthStore";
+import fetchToWeb from "@/__create/fetch";
 
 const { height } = Dimensions.get("window");
 const LOGO =
   "https://ucarecdn.com/03257673-eb5c-488a-8763-5a0cd1769775/-/format/auto/";
 
-// Brand palette — light usage
 const T = {
   bg: "#FDFBFC",
   surface: "#FFFFFF",
@@ -74,14 +73,13 @@ const COUNTRIES = [
 export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { setUser, generateOtp } = useAppAuthStore();
+  const { setUser } = useAppAuthStore();
 
   const [mode, setMode] = useState("login"); // 'login' | 'signup'
   const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState(null);
   const [step, setStep] = useState("phone"); // 'phone' | 'otp'
   const [loading, setLoading] = useState(false);
   const [countryModal, setCountryModal] = useState(false);
@@ -93,32 +91,7 @@ export default function AuthScreen() {
     (c) => c.name.includes(countrySearch) || c.code.includes(countrySearch),
   );
 
-  const fullPhone = `${selectedCountry.code}${phone}`;
-
-  const sendWhatsApp = useCallback(
-    (code, isSignup, userName) => {
-      const phoneNum = fullPhone.replace(/[^0-9]/g, "");
-      let msg;
-      if (isSignup) {
-        msg = encodeURIComponent(
-          `🎉 أهلاً وسهلاً بك في تراحيب ${userName ? `يا ${userName}` : ""}!\n\nنحن سعداء بانضمامك إلينا.\n\n🔐 رمز التحقق الخاص بك هو:\n\n*${code}*\n\nصالح لمدة 5 دقائق. لا تشاركه مع أحد.`,
-        );
-      } else {
-        msg = encodeURIComponent(
-          `مرحباً بك في تراحيب! 👋\n\n🔐 رمز التحقق لتسجيل الدخول هو:\n\n*${code}*\n\nصالح لمدة 5 دقائق. لا تشاركه مع أحد.`,
-        );
-      }
-      Linking.openURL(`whatsapp://send?phone=${phoneNum}&text=${msg}`).catch(
-        () => {
-          Alert.alert(
-            "تنبيه",
-            "تأكد من تثبيت واتساب على جهازك. رمز التحقق: " + code,
-          );
-        },
-      );
-    },
-    [fullPhone],
-  );
+  const fullPhone = `${selectedCountry.code}${phone.replace(/^0+/, "")}`;
 
   const handleSendOtp = async () => {
     if (!phone.trim() || phone.trim().length < 7) {
@@ -129,35 +102,79 @@ export default function AuthScreen() {
       Alert.alert("خطأ", "يرجى إدخال اسمك الكريم.");
       return;
     }
+
     setLoading(true);
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedOtp(code);
-    sendWhatsApp(code, mode === "signup", name);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await fetchToWeb("/api/auth/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: fullPhone }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert("خطأ", data.error || "تعذر إرسال رمز التحقق");
+        return;
+      }
+
       setStep("otp");
       setTimeout(() => otpRef.current?.focus(), 300);
-    }, 600);
+    } catch {
+      Alert.alert("خطأ", "تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.trim() !== generatedOtp) {
-      Alert.alert(
-        "رمز خاطئ",
-        "الرمز الذي أدخلته غير صحيح. تحقق من واتساب وأعد المحاولة.",
-      );
-      return;
-    }
+    if (otp.trim().length < 6) return;
+
     setLoading(true);
-    await setUser({
-      name: mode === "signup" ? name : "مستخدم تراحيب",
-      phone: fullPhone,
-      countryCode: selectedCountry.code,
-      country: selectedCountry.name,
-      registeredAt: new Date().toISOString(),
-    });
-    setLoading(false);
-    router.replace("/(tabs)");
+    try {
+      const res = await fetchToWeb("/api/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: fullPhone,
+          code: otp.trim(),
+          name: mode === "signup" ? name.trim() : undefined,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert("خطأ", data.error || "رمز التحقق غير صحيح");
+        return;
+      }
+
+      await setUser({
+        id: data.user.id,
+        name: data.user.name,
+        phone: data.user.phone,
+        jwt: data.jwt,
+      });
+
+      router.replace("/(tabs)");
+    } catch {
+      Alert.alert("خطأ", "تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setLoading(true);
+    try {
+      await fetchToWeb("/api/auth/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: fullPhone }),
+      });
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputStyle = {
@@ -190,7 +207,7 @@ export default function AuthScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo — single official image */}
+        {/* Logo */}
         <View style={{ alignItems: "center", marginBottom: 28 }}>
           <Image
             source={{ uri: LOGO }}
@@ -280,8 +297,8 @@ export default function AuthScreen() {
                 }}
               >
                 {mode === "signup"
-                  ? "سيتم إرسال رمز التحقق إلى واتساب الخاص بك."
-                  : "أدخل رقم هاتفك وسنرسل لك رمز التحقق على واتساب."}
+                  ? "سيتم إرسال رمز التحقق إلى واتساب الخاص بك تلقائياً."
+                  : "أدخل رقم هاتفك وسنرسل لك رمز التحقق على واتساب تلقائياً."}
               </Text>
 
               {/* Name (signup only) */}
@@ -321,7 +338,6 @@ export default function AuthScreen() {
                 رقم الهاتف <Text style={{ color: "#EF4444" }}>*</Text>
               </Text>
               <View style={{ flexDirection: "row", gap: 10, marginBottom: 22 }}>
-                {/* Phone Input */}
                 <TextInput
                   style={[inputStyle, { flex: 1 }]}
                   placeholder="5XXXXXXXX"
@@ -330,7 +346,6 @@ export default function AuthScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                 />
-                {/* Country Code Button */}
                 <TouchableOpacity
                   onPress={() => setCountryModal(true)}
                   style={{
@@ -490,13 +505,8 @@ export default function AuthScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => {
-                  const code = String(
-                    Math.floor(100000 + Math.random() * 900000),
-                  );
-                  setGeneratedOtp(code);
-                  sendWhatsApp(code, mode === "signup", name);
-                }}
+                onPress={handleResendOtp}
+                disabled={loading}
                 style={{ alignItems: "center", paddingVertical: 6 }}
               >
                 <Text
@@ -563,7 +573,6 @@ export default function AuthScreen() {
             </Text>
           </View>
 
-          {/* Search */}
           <View
             style={{
               padding: 14,

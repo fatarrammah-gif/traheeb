@@ -155,17 +155,21 @@ function BannerSlider() {
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { events } = useEventStore();
+  const { events, fetchEvents } = useEventStore();
   const { user } = useAppAuthStore();
   const [notifCount] = useState(3);
 
-  const totalGuests = events.reduce((acc, e) => acc + e.guests.length, 0);
+  useEffect(() => {
+    fetchEvents().catch(() => {});
+  }, []);
+
+  const totalGuests = events.reduce((acc, e) => acc + (e.guests?.length ?? 0), 0);
   const confirmedGuests = events.reduce(
-    (acc, e) => acc + e.guests.filter((g) => g.status === "confirmed").length,
+    (acc, e) => acc + (e.guests?.filter((g) => g.status === "confirmed").length ?? 0),
     0,
   );
   const invitedGuests = events.reduce(
-    (acc, e) => acc + e.guests.filter((g) => g.status === "invited").length,
+    (acc, e) => acc + (e.guests?.filter((g) => g.status === "invited").length ?? 0),
     0,
   );
 
@@ -238,7 +242,7 @@ export default function Dashboard() {
             alignItems: "center",
             paddingTop: insets.top + 10,
             paddingHorizontal: 20,
-            paddingBottom: 16,
+            paddingBottom: 0,
           }}
         >
           {/* LEFT: bell + welcome text */}
@@ -317,7 +321,7 @@ export default function Dashboard() {
           >
             <Image
               source={require("../../../white_logo.png")}
-              style={{ width: 70, height: 105 }}
+              style={{ width: 90, height: 135 }}
               contentFit="contain"
             />
           </TouchableOpacity>
@@ -341,6 +345,7 @@ export default function Dashboard() {
       >
         {/* Banner Slider */}
         <BannerSlider />
+
 
         {/* Stats Row */}
         <View
@@ -454,8 +459,8 @@ export default function Dashboard() {
                   borderColor: T.border,
                   borderRadius: 16,
                   padding: 16,
-                  borderRightWidth: 4,
-                  borderRightColor: T.primary,
+                  borderLeftWidth: 4,
+                  borderLeftColor: cc.text,
                   shadowColor: "#8A004F",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.06,
@@ -564,7 +569,7 @@ export default function Dashboard() {
                         color: T.muted,
                       }}
                     >
-                      {event.guests.length} / {event.capacity}
+                      {event.guests?.length ?? 0} / {event.capacity}
                     </Text>
                     <Users size={11} color={T.muted} />
                   </View>

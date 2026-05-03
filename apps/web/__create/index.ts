@@ -18,6 +18,7 @@ import NeonAdapter from './adapter';
 import { getHTMLForErrorPage } from './get-html-for-error-page';
 import { isAuthAction } from './is-auth-action';
 import { API_BASENAME, api } from './route-builder';
+import { initAllSessions } from '../src/services/whatsapp/SessionManager.js';
 neonConfig.webSocketConstructor = ws;
 
 const als = new AsyncLocalStorage<{ requestId: string }>();
@@ -293,7 +294,15 @@ app.use('/api/auth/*', async (c, next) => {
 });
 app.route(API_BASENAME, api);
 
-export default await createHonoServer({
+const server = await createHonoServer({
   app,
   defaultLogger: false,
 });
+
+// Restore all persistent WhatsApp sessions from the database on startup.
+// This runs after the Hono server is created so the DB connection is ready.
+initAllSessions().catch((err) => {
+  console.error('[WhatsApp] Failed to restore sessions on startup:', err);
+});
+
+export default server;
