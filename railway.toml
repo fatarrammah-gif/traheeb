@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "cd apps/web && node build/server/index.js"
+startCommand = "node build/server/index.js"

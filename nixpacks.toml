@@ -1,13 +1,2 @@
-providers = ["node"]
-
-[phases.setup]
-nixPkgs = ["nodejs_20"]
-
-[phases.install]
-cmds = ["cd apps/web && npm install --legacy-peer-deps"]
-
-[phases.build]
-cmds = ["cd apps/web && npm run build"]
-
-[start]
-cmd = "cd apps/web && node build/server/index.js"
+# Nixpacks config intentionally minimal — Railway root dir is apps/web,
+# so npm build/start scripts in apps/web/package.json are used directly.
