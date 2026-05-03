@@ -1,0 +1,7 @@
+{
+  "name": "traheeb",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

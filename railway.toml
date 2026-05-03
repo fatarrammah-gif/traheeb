@@ -1,5 +1,2 @@
-[build]
-buildCommand = "cd apps/web && npm install --legacy-peer-deps && npm run build"
-
 [deploy]
 startCommand = "cd apps/web && node build/server/index.js"
