@@ -2,10 +2,9 @@
 -- Run once against the Neon database.
 
 -- ── Users ─────────────────────────────────────────────────────────────────────
--- Application profile linked to Auth.js auth_users table.
+-- Application user profile (standalone, OTP-based auth).
 CREATE TABLE IF NOT EXISTS traheeb_users (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth_id    UUID UNIQUE REFERENCES auth_users(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
   phone      TEXT NOT NULL UNIQUE,        -- E.164 e.g. +966XXXXXXXXX
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
