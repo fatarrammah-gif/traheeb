@@ -2,11 +2,12 @@ FROM node:20-slim
 
 WORKDIR /app
 
+# Copy full monorepo so shared/ is available at /app/shared/
 COPY . .
 
-RUN npm install --legacy-peer-deps
-
+# Install and build from apps/web where the actual package.json lives
 WORKDIR /app/apps/web
+RUN npm install --legacy-peer-deps
 RUN npm run build
 
 EXPOSE 3000
