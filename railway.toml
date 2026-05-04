@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "node build/server/index.js"
+startCommand = "node /repo/apps/web/build/server/index.js"
