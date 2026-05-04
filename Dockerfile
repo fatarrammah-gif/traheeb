@@ -10,15 +10,12 @@ COPY . .
 WORKDIR /app/apps/web
 RUN npm run build
 
-RUN echo "FILES IN /app/apps/web:"
-RUN ls -la /app/apps/web
-
-RUN echo "FILES IN build/ (if exists):"
-RUN ls -la /app/apps/web/build/ || echo "BUILD FOLDER DOES NOT EXIST"
-
-RUN echo "FILES IN build/server/ (if exists):"
-RUN ls -la /app/apps/web/build/server/ || echo "build/server/ DOES NOT EXIST"
+# Show exact content of the entry file so we know what Node is trying to run
+RUN echo "=== index.js CONTENT ===" && cat /app/apps/web/build/server/index.js
+RUN echo "=== build/server/ FILES ===" && ls -la /app/apps/web/build/server/
+RUN echo "=== build/ FILES ===" && ls -la /app/apps/web/build/
 
 EXPOSE 3000
 
-CMD ["/bin/sh", "-c", "echo 'RUNTIME CHECK:' && ls -la /app/apps/web/build/server/ && node /app/apps/web/build/server/index.js"]
+# Run from WORKDIR /app/apps/web so package.json "type":"module" is found
+CMD ["node", "build/server/index.js"]
