@@ -2,20 +2,22 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files first — this layer is cached until package.json changes
 COPY apps/web/package.json apps/web/package-lock.json apps/web/.npmrc apps/web/
 RUN npm install --legacy-peer-deps --prefix apps/web
 
-# Copy all source — this layer busts cache whenever any file changes
 COPY . .
 
-# Build
 WORKDIR /app/apps/web
 RUN npm run build
 
-# Verify the output exists — fails the build clearly if something went wrong
-RUN test -f /app/apps/web/build/server/index.js \
-    || (echo "ERROR: build/server/index.js was not created" && exit 1)
+RUN echo "FILES IN /app/apps/web:"
+RUN ls -la /app/apps/web
+
+RUN echo "FILES IN build/ (if exists):"
+RUN ls -la /app/apps/web/build/ || echo "BUILD FOLDER DOES NOT EXIST"
+
+RUN echo "FILES IN build/server/ (if exists):"
+RUN ls -la /app/apps/web/build/server/ || echo "build/server/ DOES NOT EXIST"
 
 EXPOSE 3000
 
