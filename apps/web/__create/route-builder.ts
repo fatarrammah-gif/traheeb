@@ -9,8 +9,8 @@ if (globalThis.fetch) {
   globalThis.fetch = updatedFetch;
 }
 
-// Vite resolves this glob at build time — no filesystem scanning needed at runtime.
-// This works correctly in both development and production.
+// Vite resolves this glob at build time — all route paths are known statically.
+// Modules are NOT loaded here; they load lazily on first request (eager: false).
 const routeModules = import.meta.glob('../src/app/api/**/route.{js,ts}', { eager: false });
 
 /**
@@ -29,49 +29,39 @@ function getHonoPath(globKey: string): string {
     .replace(/\[([^\]]+)\]/g, ':$1');
 }
 
-async function registerRoutes() {
-  // Clear existing routes
-  api.routes = [];
-
-  // Sort by path length descending so specific routes register before parameterised ones
+function registerRoutes() {
+  // Sort by path length descending so specific routes match before parameterised ones
   const sortedEntries = Object.entries(routeModules).sort(([a], [b]) => b.length - a.length);
 
   for (const [globKey, loadModule] of sortedEntries) {
-    try {
-      const route = (await loadModule()) as Record<string, Handler>;
-      const honoPath = getHonoPath(globKey);
+    const honoPath = getHonoPath(globKey);
 
-      const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] as const;
-      for (const method of methods) {
-        if (route[method]) {
-          const handler: Handler = async (c) => {
-            const params = c.req.param();
-            return await route[method](c.req.raw, { params });
-          };
-          switch (method) {
-            case 'GET':    api.get(honoPath, handler);    break;
-            case 'POST':   api.post(honoPath, handler);   break;
-            case 'PUT':    api.put(honoPath, handler);    break;
-            case 'DELETE': api.delete(honoPath, handler); break;
-            case 'PATCH':  api.patch(honoPath, handler);  break;
-          }
+    // Each handler loads the route module lazily on first request.
+    // This keeps startup memory low — heavy modules (Baileys, Sharp, etc.)
+    // only load when their route is first called, not at server boot.
+    const lazyHandler: Handler = async (c) => {
+      try {
+        const route = (await loadModule()) as Record<string, Handler>;
+        const method = c.req.method.toUpperCase();
+        if (!route[method]) {
+          return c.json({ error: 'Method not allowed' }, 405);
         }
+        const params = c.req.param();
+        return await route[method](c.req.raw, { params });
+      } catch (error) {
+        console.error(`Error in route ${globKey} [${c.req.method}]:`, error);
+        return c.json({ error: 'Internal server error' }, 500);
       }
-    } catch (error) {
-      console.error(`Error importing route ${globKey}:`, error);
-    }
+    };
+
+    api.get(honoPath, lazyHandler);
+    api.post(honoPath, lazyHandler);
+    api.put(honoPath, lazyHandler);
+    api.delete(honoPath, lazyHandler);
+    api.patch(honoPath, lazyHandler);
   }
 }
 
-await registerRoutes();
-
-// Re-register on hot reload in development
-if (import.meta.env.DEV && import.meta.hot) {
-  import.meta.hot.accept(() => {
-    registerRoutes().catch((err) => {
-      console.error('Error reloading routes:', err);
-    });
-  });
-}
+registerRoutes();
 
 export { api, API_BASENAME };

@@ -18,7 +18,8 @@ import NeonAdapter from './adapter';
 import { getHTMLForErrorPage } from './get-html-for-error-page';
 import { isAuthAction } from './is-auth-action';
 import { API_BASENAME, api } from './route-builder';
-import { initAllSessions } from '../src/services/whatsapp/SessionManager.js';
+// SessionManager (Baileys) is imported dynamically after the server starts
+// to keep startup memory low and avoid OOM crashes on constrained hosts.
 neonConfig.webSocketConstructor = ws;
 
 const als = new AsyncLocalStorage<{ requestId: string }>();
@@ -299,10 +300,12 @@ const server = await createHonoServer({
   defaultLogger: false,
 });
 
-// Restore all persistent WhatsApp sessions from the database on startup.
-// This runs after the Hono server is created so the DB connection is ready.
-initAllSessions().catch((err) => {
-  console.error('[WhatsApp] Failed to restore sessions on startup:', err);
-});
+// Load Baileys and restore WhatsApp sessions after the server is already
+// listening — avoids loading heavy crypto libs during startup (OOM risk).
+setTimeout(() => {
+  import('../src/services/whatsapp/SessionManager.js')
+    .then(({ initAllSessions }) => initAllSessions())
+    .catch((err) => console.error('[WhatsApp] Failed to restore sessions:', err));
+}, 3000);
 
 export default server;
