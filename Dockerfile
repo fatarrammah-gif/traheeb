@@ -21,4 +21,4 @@ RUN ls -la /app/apps/web/build/server/ || echo "build/server/ DOES NOT EXIST"
 
 EXPOSE 3000
 
-CMD ["node", "/app/apps/web/build/server/index.js"]
+CMD ["/bin/sh", "-c", "echo 'RUNTIME CHECK:' && ls -la /app/apps/web/build/server/ && node /app/apps/web/build/server/index.js"]
