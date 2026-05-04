@@ -4,7 +4,8 @@ import { skipCSRFCheck } from '@auth/core';
 import Credentials from '@auth/core/providers/credentials';
 import { authHandler, initAuthConfig } from '@hono/auth-js';
 import { Pool, neonConfig } from '@neondatabase/serverless';
-import { hash, verify } from 'argon2';
+// argon2 is a native module — imported dynamically inside handlers only
+// to avoid crashing the process at startup if the binary doesn't match.
 import { Hono } from 'hono';
 import { contextStorage, getContext } from 'hono/context-storage';
 import { cors } from 'hono/cors';
@@ -206,6 +207,7 @@ if (process.env.AUTH_SECRET) {
               return null;
             }
 
+            const { verify } = await import('argon2');
             const isValid = await verify(accountPassword, password);
             if (!isValid) {
               return null;
@@ -250,7 +252,7 @@ if (process.env.AUTH_SECRET) {
               });
               await adapter.linkAccount({
                 extraData: {
-                  password: await hash(password),
+                  password: await (await import('argon2')).hash(password),
                 },
                 type: 'credentials',
                 userId: newUser.id,
