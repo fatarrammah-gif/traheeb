@@ -1,2 +1,0 @@
-# Nixpacks config intentionally minimal — Railway root dir is apps/web,
-# so npm build/start scripts in apps/web/package.json are used directly.
