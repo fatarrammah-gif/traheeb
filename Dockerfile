@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Build tools required by native modules (argon2, canvas, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
