@@ -1,0 +1,10 @@
+node_modules
+apps/web/node_modules
+apps/mobile/node_modules
+apps/web/build
+apps/web/.react-router
+apps/mobile/.expo
+**/.DS_Store
+*.log
+.env
+.env.*
