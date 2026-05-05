@@ -1,13 +1,8 @@
 import { Hono } from 'hono';
 import type { Handler } from 'hono/types';
-import updatedFetch from '../src/__create/fetch';
 
 const API_BASENAME = '/api';
 const api = new Hono();
-
-if (globalThis.fetch) {
-  globalThis.fetch = updatedFetch;
-}
 
 // Vite resolves this glob at build time — all route paths are known statically.
 // Modules are NOT loaded here; they load lazily on first request (eager: false).
