@@ -21,7 +21,7 @@ export async function POST(request) {
       return Response.json({ error: 'رقم الجوال مطلوب للربط' }, { status: 400 });
     }
 
-    const pairingCode = await getOrCreateSession(user.id, phone);
+    const { pairingCode } = await getOrCreateSession(user.id, phone);
 
     return Response.json({ pairingCode });
   } catch (err) {

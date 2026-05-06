@@ -2,18 +2,14 @@
  * POST /api/auth/otp/verify
  * Body: { phone, code, name? }
  *
- * Validates the OTP, upserts auth_users + traheeb_users, returns a signed JWT.
+ * Validates the OTP, upserts traheeb_users, returns a signed JWT.
+ * JWT sub = traheeb_users.id
  */
 import { encode } from '@auth/core/jwt';
 import sql from '../../../utils/sql.js';
 
 const SALT = 'authjs.session-token';
 const JWT_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
-
-function phoneToEmail(phone) {
-  // Use a synthetic email so Auth.js adapter is happy
-  return `${phone.replace(/[^0-9]/g, '')}@phone.traheeb`;
-}
 
 export async function POST(request) {
   try {
@@ -43,57 +39,36 @@ export async function POST(request) {
     // Mark OTP as used
     await sql`UPDATE traheeb_otp_codes SET used = true WHERE id = ${otpRows[0].id}`;
 
-    const email = phoneToEmail(phone);
-
-    // Upsert auth_users (using Auth.js table directly)
-    const authRows = await sql`
-      SELECT id, name FROM auth_users WHERE email = ${email} LIMIT 1
-    `;
-
-    let authId;
-    let userName;
-
-    if (authRows.length) {
-      authId   = authRows[0].id;
-      userName = authRows[0].name ?? name;
-    } else {
-      const inserted = await sql`
-        INSERT INTO auth_users (email, name, "emailVerified")
-        VALUES (${email}, ${name}, now())
-        RETURNING id, name
-      `;
-      authId   = inserted[0].id;
-      userName = inserted[0].name;
-    }
-
-    // Upsert traheeb_users
+    // Upsert traheeb_users directly (no auth_users dependency)
     const userRows = await sql`
-      SELECT id FROM traheeb_users WHERE auth_id = ${authId} LIMIT 1
+      SELECT id, name FROM traheeb_users WHERE phone = ${phone} LIMIT 1
     `;
 
     let userId;
+    let userName;
+
     if (userRows.length) {
-      userId = userRows[0].id;
+      userId   = userRows[0].id;
+      userName = userRows[0].name;
     } else {
       const inserted = await sql`
-        INSERT INTO traheeb_users (auth_id, name, phone)
-        VALUES (${authId}, ${userName}, ${phone})
-        RETURNING id
+        INSERT INTO traheeb_users (name, phone)
+        VALUES (${name}, ${phone})
+        RETURNING id, name
       `;
-      userId = inserted[0].id;
+      userId   = inserted[0].id;
+      userName = inserted[0].name;
     }
 
-    // Sign JWT (same mechanism as Auth.js so mobile fetch.ts works)
+    // Sign JWT — sub is traheeb_users.id
     const secret = process.env.AUTH_SECRET;
     if (!secret) throw new Error('AUTH_SECRET not set');
 
     const jwt = await encode({
       token: {
-        sub:   authId,
-        email,
+        sub:   userId,
         name:  userName,
         phone,
-        traheebUserId: userId,
       },
       secret,
       salt: SALT,

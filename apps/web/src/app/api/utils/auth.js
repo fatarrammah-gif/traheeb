@@ -33,12 +33,12 @@ export async function requireAuth(request) {
 }
 
 /**
- * Look up the traheeb_users row by auth_id (= Auth.js user id = JWT sub).
+ * Look up the traheeb_users row by id (= JWT sub).
  * Throws 401 if not found.
  */
-export async function getUserRecord(authId) {
+export async function getUserRecord(userId) {
   const rows = await sql`
-    SELECT id, name, phone FROM traheeb_users WHERE auth_id = ${authId} LIMIT 1
+    SELECT id, name, phone FROM traheeb_users WHERE id = ${userId} LIMIT 1
   `;
   if (!rows.length) throw authError('User profile not found');
   return rows[0];
