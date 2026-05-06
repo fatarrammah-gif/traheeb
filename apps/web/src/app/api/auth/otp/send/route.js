@@ -3,14 +3,16 @@
  * Body: { phone: "+966XXXXXXXXX" }
  *
  * Generates a 6-digit OTP, stores it in traheeb_otp_codes with 5-min expiry,
- * and sends it via the Traheeb system WhatsApp bot account.
+ * and sends it via Twilio WhatsApp.
  */
 import sql from '../../../utils/sql.js';
-import { sendText } from '../../../../../services/whatsapp/sender.js';
-import { isConnected } from '../../../../../services/whatsapp/SessionManager.js';
-import { otpMessage } from '../../../../../services/whatsapp/templates.js';
+import twilio from 'twilio';
 
-const SYSTEM_USER_ID = process.env.WHATSAPP_BOT_USER_ID || 'SYSTEM';
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN,
+);
+const FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
 
 export async function POST(request) {
   try {
@@ -38,12 +40,21 @@ export async function POST(request) {
       VALUES (${phone}, ${code}, ${expiresAt.toISOString()})
     `;
 
-    // Send via WhatsApp bot
-    if (isConnected(SYSTEM_USER_ID)) {
-      await sendText(SYSTEM_USER_ID, phone, otpMessage(code));
+    // Send via Twilio WhatsApp
+    if (process.env.TWILIO_ACCOUNT_SID) {
+      try {
+        await twilioClient.messages.create({
+          from: FROM,
+          to: `whatsapp:${phone}`,
+          body: `رمز التحقق الخاص بك في تراحيب: *${code}*\nصالح لمدة 5 دقائق.`,
+        });
+      } catch (twilioErr) {
+        // Log but don't fail — fallback to console so dev can still test
+        console.error('[Twilio]', twilioErr.message);
+        console.log(`[OTP fallback] ${phone} → ${code}`);
+      }
     } else {
-      // Fallback: log to console (for dev/testing)
-      console.log(`[OTP] ${phone} → ${code} (WhatsApp bot not connected)`);
+      console.log(`[OTP] ${phone} → ${code} (TWILIO_ACCOUNT_SID not set)`);
     }
 
     return Response.json({ success: true, expiresIn: 300 });
