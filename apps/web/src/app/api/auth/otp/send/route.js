@@ -40,13 +40,22 @@ export async function POST(request) {
       VALUES (${phone}, ${code}, ${expiresAt.toISOString()})
     `;
 
+    // Look up user's name for personalised greeting
+    const userRows = await sql`
+      SELECT name FROM traheeb_users WHERE phone = ${phone} LIMIT 1
+    `;
+    const userName = userRows.length ? userRows[0].name : null;
+    const greeting = userName ? `أهلاً وسهلاً ${userName}` : 'أهلاً وسهلاً';
+
+    const message = `${greeting} 👋\n\nرمز التحقق الخاص بك في تراحيب:\n\n*${code}*\n\nصالح لمدة 5 دقائق ⏱️`;
+
     // Send via Twilio WhatsApp
     if (process.env.TWILIO_ACCOUNT_SID) {
       try {
         await twilioClient.messages.create({
           from: FROM,
           to: `whatsapp:${phone}`,
-          body: `رمز التحقق الخاص بك في تراحيب: *${code}*\nصالح لمدة 5 دقائق.`,
+          body: message,
         });
       } catch (twilioErr) {
         // Log but don't fail — fallback to console so dev can still test
