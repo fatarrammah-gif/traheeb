@@ -1,7 +1,9 @@
 /**
  * WhatsApp message sending helpers (whatsapp-web.js).
  */
-import { getClient, MessageMedia } from './SessionManager.js';
+import { getClient } from './SessionManager.js';
+import pkg from 'whatsapp-web.js';
+const { MessageMedia } = pkg;
 
 function toJid(phone) {
   return `${phone.replace(/[^0-9]/g, '')}@c.us`;

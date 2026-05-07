@@ -5,7 +5,8 @@
  * Sessions are persisted to .wwebjs_auth/ (LocalAuth).
  * On Railway: mount a volume at /app/apps/web/.wwebjs_auth to persist across deploys.
  */
-import { Client, LocalAuth, MessageMedia } from 'whatsapp-web.js';
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth, MessageMedia } = pkg;
 import QRCode from 'qrcode';
 import sql from '../../app/api/utils/sql.js';
 
