@@ -3,12 +3,17 @@
  * Returns the WhatsApp connection status for the authenticated user.
  */
 import { authenticate } from '../../utils/auth.js';
-import { isConnected } from '../../../../services/whatsapp/SessionManager.js';
+import { getSession, isConnected } from '../../../../services/whatsapp/SessionManager.js';
 
 export async function GET(request) {
   try {
     const { user } = await authenticate(request);
-    return Response.json({ connected: isConnected(user.id) });
+    const session = getSession(user.id);
+    return Response.json({
+      connected: isConnected(user.id),
+      status: session?.status ?? 'none',
+      qrDataUrl: session?.qrDataUrl ?? null,
+    });
   } catch (err) {
     if (err.status) {
       return Response.json({ error: err.message }, { status: err.status });

@@ -47,19 +47,18 @@ export async function POST(request) {
     const userName = userRows.length ? userRows[0].name : null;
     const greeting = userName ? `أهلاً وسهلاً ${userName}` : 'أهلاً وسهلاً';
 
-    const message = `${greeting} 👋\n\nرمز التحقق الخاص بك في تراحيب:\n\n*${code}*\n\nصالح لمدة 5 دقائق ⏱️`;
+    const message = `${greeting} 👋\n\nرمز التحقق الخاص بك في تراحيب: *${code}*\n\nصالح لمدة 5 دقائق ⏱️`;
 
-    // Send via Twilio WhatsApp
+    // Send via Twilio SMS (works with any number, no WhatsApp session needed)
     if (process.env.TWILIO_ACCOUNT_SID) {
       try {
         await twilioClient.messages.create({
-          from: FROM,
-          to: `whatsapp:${phone}`,
-          body: message,
+          from: process.env.TWILIO_PHONE_NUMBER || FROM,
+          to: phone,
+          body: message.replace(/\*/g, ''), // SMS doesn't support bold
         });
       } catch (twilioErr) {
-        // Log but don't fail — fallback to console so dev can still test
-        console.error('[Twilio]', twilioErr.message);
+        console.error('[Twilio SMS]', twilioErr.message);
         console.log(`[OTP fallback] ${phone} → ${code}`);
       }
     } else {

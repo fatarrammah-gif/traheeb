@@ -1,10 +1,10 @@
 /**
  * POST /api/whatsapp/connect
- * Creates or restores a Baileys session for the authenticated user.
- * Returns { connected: true } if already connected, or { pairingCode } for new sessions.
+ * Starts a whatsapp-web.js session for the authenticated organizer.
+ * Returns { connected: true } if already linked, or { qrDataUrl } for first-time linking.
  */
 import { authenticate } from '../../utils/auth.js';
-import { isConnected, getOrCreateSession } from '../../../../services/whatsapp/SessionManager.js';
+import { getOrStartSession, isConnected } from '../../../../services/whatsapp/SessionManager.js';
 
 export async function POST(request) {
   try {
@@ -14,20 +14,25 @@ export async function POST(request) {
       return Response.json({ connected: true });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const phone = body.phone ?? user.phone;
+    const session = await getOrStartSession(user.id);
 
-    if (!phone) {
-      return Response.json({ error: 'رقم الجوال مطلوب للربط' }, { status: 400 });
+    // Wait up to 8 seconds for QR to be generated
+    const start = Date.now();
+    while (session.status === 'initializing' && Date.now() - start < 8000) {
+      await new Promise((r) => setTimeout(r, 500));
     }
 
-    const { pairingCode } = await getOrCreateSession(user.id, phone);
+    if (session.status === 'connected') {
+      return Response.json({ connected: true });
+    }
 
-    return Response.json({ pairingCode });
+    if (session.qrDataUrl) {
+      return Response.json({ connected: false, qrDataUrl: session.qrDataUrl });
+    }
+
+    return Response.json({ connected: false, status: session.status });
   } catch (err) {
-    if (err.status) {
-      return Response.json({ error: err.message }, { status: err.status });
-    }
+    if (err.status) return Response.json({ error: err.message }, { status: err.status });
     console.error('[WhatsApp connect]', err);
     return Response.json({ error: 'حدث خطأ، حاول مجدداً' }, { status: 500 });
   }
