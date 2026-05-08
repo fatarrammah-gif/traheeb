@@ -18,6 +18,7 @@ import {
   Share2,
   LogOut,
   ChevronLeft,
+  MessageCircle,
 } from "lucide-react-native";
 import useAppAuthStore from "@/store/appAuthStore";
 
@@ -252,6 +253,11 @@ export default function MoreScreen() {
                 `الاسم: ${user?.name || "-"}\nالهاتف: ${user?.phone || "-"}\nالدولة: ${user?.country || "-"}`,
               )
             }
+          />
+          <MenuItem
+            icon={MessageCircle}
+            label="ربط واتساب"
+            onPress={() => router.push("/(tabs)/whatsapp-connect")}
           />
           <MenuItem icon={Mail} label="تواصل معنا" onPress={handleContact} />
           <MenuItem

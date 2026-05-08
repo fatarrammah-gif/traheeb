@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
 } from "lucide-react-native";
 
+
 export default function TabLayout() {
   return (
     <Tabs
@@ -53,6 +54,11 @@ export default function TabLayout() {
           title: "الرئيسية",
           tabBarIcon: ({ color }) => <Home color={color} size={22} />,
         }}
+      />
+      {/* Hidden screens — accessible via router.push, not shown in tab bar */}
+      <Tabs.Screen
+        name="whatsapp-connect"
+        options={{ href: null }}
       />
     </Tabs>
   );
