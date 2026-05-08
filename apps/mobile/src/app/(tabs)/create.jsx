@@ -369,11 +369,27 @@ export default function CreateEvent() {
 
   const uploadAsset = async (asset) => {
     if (!asset) return null;
-    // Skip upload if Uploadcare is not configured (local dev)
-    if (!process.env.EXPO_PUBLIC_UPLOADCARE_PUBLIC_KEY) return null;
-    const { url, error } = await upload({ reactNativeAsset: asset });
-    if (error) throw new Error(error);
-    return url;
+    const publicKey = process.env.EXPO_PUBLIC_UPLOADCARE_PUBLIC_KEY;
+    if (!publicKey) return null;
+
+    const formData = new FormData();
+    formData.append('UPLOADCARE_PUB_KEY', publicKey);
+    formData.append('UPLOADCARE_STORE', 'auto');
+    formData.append('file', {
+      uri: asset.uri,
+      name: asset.fileName || asset.uri.split('/').pop() || 'upload',
+      type: asset.mimeType || 'application/octet-stream',
+    });
+
+    const res = await fetch('https://upload.uploadcare.com/base/', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    const data = await res.json();
+    if (!data.file) throw new Error('Upload failed: no file UUID returned');
+    return `https://ucarecdn.com/${data.file}/`;
   };
 
 
@@ -442,8 +458,9 @@ export default function CreateEvent() {
         invitationMedia: null,
         qrBackground: null,
       });
-    } catch {
-      Alert.alert("خطأ", "حدث خطأ أثناء الحفظ. حاول مجدداً.");
+    } catch (err) {
+      console.error('[Save event]', err?.message, err);
+      Alert.alert("خطأ", err?.message || "حدث خطأ أثناء الحفظ. حاول مجدداً.");
     } finally {
       setSaving(false);
     }
