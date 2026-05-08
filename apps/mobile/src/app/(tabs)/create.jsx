@@ -36,7 +36,7 @@ import {
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import useEventStore from "@/store/eventStore";
 import useAppAuthStore from "@/store/appAuthStore";
-import useUpload from "@/utils/useUpload";
+
 
 const { height } = Dimensions.get("window");
 
@@ -163,8 +163,6 @@ export default function CreateEvent() {
   const navigation = useNavigation();
   const { createEvent } = useEventStore();
   const { user } = useAppAuthStore();
-  const [upload, { loading: uploading }] = useUpload();
-
   const [form, setForm] = useState({
     name: "",
     date: "",
@@ -367,10 +365,10 @@ export default function CreateEvent() {
     update(formKey, asset);
   };
 
-  const uploadAsset = async (asset) => {
-    if (!asset) return null;
+  const uploadAsset = (asset) => new Promise((resolve, reject) => {
+    if (!asset) return resolve(null);
     const publicKey = process.env.EXPO_PUBLIC_UPLOADCARE_PUBLIC_KEY;
-    if (!publicKey) return null;
+    if (!publicKey) return resolve(null);
 
     const formData = new FormData();
     formData.append('UPLOADCARE_PUB_KEY', publicKey);
@@ -381,16 +379,23 @@ export default function CreateEvent() {
       type: asset.mimeType || 'application/octet-stream',
     });
 
-    const res = await fetch('https://upload.uploadcare.com/base/', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    const data = await res.json();
-    if (!data.file) throw new Error('Upload failed: no file UUID returned');
-    return `https://ucarecdn.com/${data.file}/`;
-  };
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://upload.uploadcare.com/base/');
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300 && data.file) {
+          resolve(`https://ucarecdn.com/${data.file}/`);
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status} — ${xhr.responseText}`));
+        }
+      } catch {
+        reject(new Error('Upload failed: invalid response'));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Upload network error'));
+    xhr.send(formData);
+  });
 
 
   // ── Save ──
@@ -998,9 +1003,9 @@ export default function CreateEvent() {
         {/* ── Save Button ── */}
         <TouchableOpacity
           onPress={handleSave}
-          disabled={saving || uploading}
+          disabled={saving}
           style={{
-            backgroundColor: saving || uploading ? "#E88AB4" : T.primary,
+            backgroundColor: saving ? "#E88AB4" : T.primary,
             borderRadius: 14,
             padding: 17,
             alignItems: "center",
@@ -1011,7 +1016,7 @@ export default function CreateEvent() {
           }}
           activeOpacity={0.85}
         >
-          {saving || uploading ? (
+          {saving ? (
             <>
               <ActivityIndicator color="#FFF" size="small" />
               <Text
