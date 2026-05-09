@@ -424,6 +424,9 @@ export default function CreateEvent() {
       const logoUrl  = await uploadAsset(form.eventLogo);
       const mediaUrl = await uploadAsset(form.invitationMedia);
       const qrBgUrl  = await uploadAsset(form.qrBackground);
+      console.log('[save] logoUrl:', logoUrl);
+      console.log('[save] mediaUrl:', mediaUrl);
+      console.log('[save] qrBgUrl:', qrBgUrl);
       await createEvent({
         name: form.name,
         date: form.date,

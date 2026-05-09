@@ -87,6 +87,7 @@ export async function POST(request, { params }) {
     }
 
     // Send WhatsApp invitations (non-blocking, organizer's session)
+    console.log(`[guests] connected=${isConnected(user.id)} media_url=${event.invitation_media_url ?? 'NULL'}`);
     if (isConnected(user.id) && inserted.length) {
       sendInvitations(user.id, event, inserted).catch(err =>
         console.error('[send invitations]', err)
