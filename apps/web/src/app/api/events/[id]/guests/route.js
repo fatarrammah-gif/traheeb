@@ -117,7 +117,12 @@ async function sendInvitations(userId, event, guests) {
 
     try {
       if (event.invitation_media_url) {
-        await sendMedia(userId, guest.phone, text, event.invitation_media_url);
+        try {
+          await sendMedia(userId, guest.phone, text, event.invitation_media_url);
+        } catch (mediaErr) {
+          console.error(`[media failed for ${guest.phone}] ${mediaErr.message} — falling back to text`);
+          await sendText(userId, guest.phone, text);
+        }
       } else {
         await sendText(userId, guest.phone, text);
       }
