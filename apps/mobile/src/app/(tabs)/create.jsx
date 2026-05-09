@@ -350,10 +350,7 @@ export default function CreateEvent() {
   const pickMedia = async (mediaType, formKey) => {
     const MAX = 500 * 1024 * 1024;
     const opts = {
-      mediaTypes:
-        mediaType === "video"
-          ? ExpoImagePicker.MediaTypeOptions.Videos
-          : ExpoImagePicker.MediaTypeOptions.Images,
+      mediaTypes: mediaType === "video" ? ["videos"] : ["images"],
       allowsEditing: formKey !== "invitationMedia",
       quality: formKey === "qrBackground" ? 1 : 0.85,
     };
