@@ -368,6 +368,7 @@ export default function CreateEvent() {
   const uploadAsset = (asset) => new Promise((resolve, reject) => {
     if (!asset) return resolve(null);
     const publicKey = process.env.EXPO_PUBLIC_UPLOADCARE_PUBLIC_KEY;
+    console.log('[uploadAsset] publicKey:', publicKey ? publicKey.slice(0, 6) + '…' : 'MISSING');
     if (!publicKey) return resolve(null);
 
     const formData = new FormData();
@@ -382,10 +383,13 @@ export default function CreateEvent() {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', 'https://upload.uploadcare.com/base/');
     xhr.onload = () => {
+      console.log('[uploadAsset] status:', xhr.status, 'body:', xhr.responseText.slice(0, 150));
       try {
         const data = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300 && data.file) {
-          resolve(`https://ucarecdn.com/${data.file}/`);
+          const url = `https://ucarecdn.com/${data.file}/`;
+          console.log('[uploadAsset] url:', url);
+          resolve(url);
         } else {
           reject(new Error(`Upload failed: ${xhr.status} — ${xhr.responseText}`));
         }
