@@ -78,14 +78,20 @@ export async function POST(request) {
     }
 
     // Strip base64 media before sending to mobile — only the server needs it
-    const { event_logo_url, invitation_media_url, qr_background_url, ...eventSafe } = event;
-    const eventForClient = {
-      ...eventSafe,
-      has_logo:    event_logo_url != null,
-      has_media:   invitation_media_url != null,
-      has_qr_bg:   qr_background_url != null,
-    };
-    return Response.json({ event: eventForClient }, { status: 201 });
+    const {
+      event_logo_url: _logo,
+      invitation_media_url: _media,
+      qr_background_url: _qrbg,
+      ...eventSafe
+    } = event;
+    return Response.json({
+      event: {
+        ...eventSafe,
+        has_logo:  _logo  != null,
+        has_media: _media != null,
+        has_qr_bg: _qrbg  != null,
+      },
+    }, { status: 201 });
   } catch (err) {
     if (err.status) return Response.json({ error: err.message }, { status: err.status });
     console.error('[POST /api/events]', err);
