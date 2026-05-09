@@ -69,6 +69,7 @@ export async function POST(request) {
         uploadToUploadcare(rawMediaUrl),
         uploadToUploadcare(rawQrBgUrl),
       ]);
+      console.log('[events POST] uploads:', { event_logo_url, invitation_media_url, qr_background_url });
     } catch (uploadErr) {
       console.error('[events POST] media upload failed:', uploadErr.message);
       // Continue without media rather than failing the whole request
