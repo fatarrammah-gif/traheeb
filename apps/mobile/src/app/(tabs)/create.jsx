@@ -33,6 +33,8 @@ import {
   Check,
   Trash2,
 } from "lucide-react-native";
+import * as FileSystem from "expo-file-system";
+import * as ImageManipulator from "expo-image-manipulator";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import useEventStore from "@/store/eventStore";
 import useAppAuthStore from "@/store/appAuthStore";
@@ -365,36 +367,39 @@ export default function CreateEvent() {
     update(formKey, asset);
   };
 
-  const uploadAsset = (asset) => new Promise((resolve, reject) => {
-    if (!asset) return resolve(null);
-    const apiKey = process.env.EXPO_PUBLIC_IMGBB_API_KEY;
-    if (!apiKey) return resolve(null);
-
-    const formData = new FormData();
-    formData.append('key', apiKey);
-    formData.append('image', {
-      uri: asset.uri,
-      name: asset.fileName || asset.uri.split('/').pop() || 'upload.jpg',
-      type: asset.mimeType || 'image/jpeg',
-    });
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'https://api.imgbb.com/1/upload');
-    xhr.onload = () => {
-      try {
-        const data = JSON.parse(xhr.responseText);
-        if (data.success && data.data?.url) {
-          resolve(data.data.url);
-        } else {
-          reject(new Error(`Upload failed: ${xhr.status} — ${xhr.responseText.slice(0, 120)}`));
-        }
-      } catch {
-        reject(new Error('Upload failed: invalid response'));
+  /**
+   * Compress image to max 900px, read as base64, return a data URI.
+   * Videos are passed through as-is (base64 read directly).
+   * Returns null if no asset provided.
+   */
+  const uploadAsset = async (asset) => {
+    if (!asset) return null;
+    const isVideo = asset.mimeType?.startsWith('video') || asset.type === 'video';
+    try {
+      if (isVideo) {
+        // Videos: read raw base64 — no compression
+        const b64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const mime = asset.mimeType || 'video/mp4';
+        return `data:${mime};base64,${b64}`;
+      } else {
+        // Images: compress to max 900px wide at 80% quality first
+        const compressed = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 900 } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+        );
+        const b64 = await FileSystem.readAsStringAsync(compressed.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        return `data:image/jpeg;base64,${b64}`;
       }
-    };
-    xhr.onerror = () => reject(new Error('Upload network error'));
-    xhr.send(formData);
-  });
+    } catch (err) {
+      console.error('[uploadAsset] error:', err.message);
+      return null;
+    }
+  };
 
 
   // ── Save ──

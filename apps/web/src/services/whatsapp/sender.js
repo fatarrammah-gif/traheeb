@@ -18,20 +18,28 @@ export async function sendText(userId, phone, text) {
 
 /**
  * Send a media message (image or video) with caption.
- * Uses MessageMedia.fromUrl() which handles redirects and headers automatically.
+ * mediaSource can be:
+ *   - a data URI:  "data:image/jpeg;base64,/9j/..."  (stored in DB, used directly)
+ *   - a plain URL: "https://..."                     (downloaded first)
  */
-export async function sendMedia(userId, phone, caption, mediaUrl) {
+export async function sendMedia(userId, phone, caption, mediaSource) {
   const client = getClient(userId);
-  console.log(`[sendMedia] downloading: ${mediaUrl}`);
-  const media = await MessageMedia.fromUrl(mediaUrl, {
-    unsafeMime: true,
-    reqOptions: {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Traheeb/1.0)',
-      },
-    },
-  });
-  console.log(`[sendMedia] mime=${media.mimetype} size=${media.data.length} chars`);
+  let media;
+
+  if (mediaSource.startsWith('data:')) {
+    // Already base64 — parse and build MessageMedia directly, no network call needed
+    const [header, data] = mediaSource.split(',');
+    const mimeType = header.replace('data:', '').replace(';base64', '');
+    const ext = mimeType.split('/')[1]?.split(';')[0] ?? 'jpg';
+    media = new MessageMedia(mimeType, data, `media.${ext}`);
+    console.log(`[sendMedia] using base64 data uri, mime=${mimeType} size=${data.length}`);
+  } else {
+    // Plain URL — download it
+    console.log(`[sendMedia] downloading: ${mediaSource}`);
+    media = await MessageMedia.fromUrl(mediaSource, { unsafeMime: true });
+    console.log(`[sendMedia] downloaded mime=${media.mimetype}`);
+  }
+
   await client.sendMessage(toJid(phone), media, { caption });
 }
 
