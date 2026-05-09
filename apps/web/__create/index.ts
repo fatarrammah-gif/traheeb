@@ -75,11 +75,19 @@ if (process.env.CORS_ORIGINS) {
     })
   );
 }
+// Events route carries base64 images — allow up to 20MB
+app.post(
+  '/api/events',
+  bodyLimit({
+    maxSize: 20 * 1024 * 1024,
+    onError: (c) => c.json({ error: 'حجم البيانات كبير جداً' }, 413),
+  })
+);
 for (const method of ['post', 'put', 'patch'] as const) {
   app[method](
     '*',
     bodyLimit({
-      maxSize: 4.5 * 1024 * 1024, // 4.5mb to match vercel limit
+      maxSize: 4.5 * 1024 * 1024,
       onError: (c) => {
         return c.json({ error: 'Body size limit exceeded' }, 413);
       },

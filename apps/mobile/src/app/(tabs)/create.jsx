@@ -351,8 +351,8 @@ export default function CreateEvent() {
     const opts = {
       mediaTypes: mediaType === "video" ? ["videos"] : ["images"],
       allowsEditing: formKey !== "invitationMedia",
-      quality: formKey === "qrBackground" ? 1 : 0.85,
-      base64: true,
+      quality: 0.7,
+      base64: false,
     };
     const res = await ExpoImagePicker.launchImageLibraryAsync(opts);
     if (res.canceled) return;
@@ -373,18 +373,22 @@ export default function CreateEvent() {
     const isVideo = asset.mimeType?.startsWith('video') || asset.type === 'video';
     try {
       if (isVideo) {
-        // Videos: use base64 returned directly by the image picker
-        const mime = asset.mimeType || 'video/mp4';
-        return `data:${mime};base64,${asset.base64}`;
-      } else {
-        // Images: compress to 900px first, then use manipulator's base64 output
-        const compressed = await manipulateAsync(
-          asset.uri,
-          [{ resize: { width: 900 } }],
-          { compress: 0.8, format: SaveFormat.JPEG, base64: true },
-        );
-        return `data:image/jpeg;base64,${compressed.base64}`;
+        // Videos: skip — too large for base64 in DB, send text invitation only
+        return null;
       }
+      // Compress aggressively: max 800px, 70% quality
+      const compressed = await manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 800 } }],
+        { compress: 0.7, format: SaveFormat.JPEG, base64: true },
+      );
+      const dataUri = `data:image/jpeg;base64,${compressed.base64}`;
+      // Warn if still too large (>3MB base64 = ~2.2MB image)
+      if (dataUri.length > 3 * 1024 * 1024) {
+        console.warn('[uploadAsset] image too large after compression, skipping');
+        return null;
+      }
+      return dataUri;
     } catch (err) {
       console.error('[uploadAsset] error:', err.message);
       return null;
