@@ -34,7 +34,7 @@ import {
   Trash2,
 } from "lucide-react-native";
 import * as FileSystem from "expo-file-system";
-import * as ImageManipulator from "expo-image-manipulator";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import useEventStore from "@/store/eventStore";
 import useAppAuthStore from "@/store/appAuthStore";
@@ -385,10 +385,10 @@ export default function CreateEvent() {
         return `data:${mime};base64,${b64}`;
       } else {
         // Images: compress to max 900px wide at 80% quality first
-        const compressed = await ImageManipulator.manipulateAsync(
+        const compressed = await manipulateAsync(
           asset.uri,
           [{ resize: { width: 900 } }],
-          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+          { compress: 0.8, format: SaveFormat.JPEG },
         );
         const b64 = await FileSystem.readAsStringAsync(compressed.uri, {
           encoding: FileSystem.EncodingType.Base64,
