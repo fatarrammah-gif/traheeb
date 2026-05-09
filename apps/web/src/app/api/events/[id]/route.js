@@ -39,7 +39,17 @@ export async function GET(request, { params }) {
       ORDER BY g.created_at ASC
     `;
 
-    return Response.json({ event, guests });
+    // Strip base64 media — mobile only needs to know if media exists
+    const { event_logo_url, invitation_media_url, qr_background_url, ...eventSafe } = event;
+    return Response.json({
+      event: {
+        ...eventSafe,
+        has_logo:  event_logo_url != null,
+        has_media: invitation_media_url != null,
+        has_qr_bg: qr_background_url != null,
+      },
+      guests,
+    });
   } catch (err) {
     if (err.status) return Response.json({ error: err.message }, { status: err.status });
     console.error('[GET /api/events/[id]]', err);

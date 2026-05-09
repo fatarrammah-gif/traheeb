@@ -14,7 +14,13 @@ export async function GET(request) {
 
     const events = await sql`
       SELECT
-        e.*,
+        e.id, e.user_id, e.name, e.date, e.time, e.category, e.capacity,
+        e.venue, e.location, e.map_lat, e.map_lng,
+        e.invitation_text, e.reminder,
+        e.event_logo_url IS NOT NULL        AS has_logo,
+        e.invitation_media_url IS NOT NULL  AS has_media,
+        e.qr_background_url IS NOT NULL     AS has_qr_bg,
+        e.created_at,
         COUNT(g.id)::int                                          AS total_guests,
         COUNT(g.id) FILTER (WHERE g.status = 'confirmed')::int    AS confirmed_count,
         COUNT(g.id) FILTER (WHERE g.status = 'attended')::int     AS attended_count
@@ -71,7 +77,15 @@ export async function POST(request) {
       );
     }
 
-    return Response.json({ event }, { status: 201 });
+    // Strip base64 media before sending to mobile — only the server needs it
+    const { event_logo_url, invitation_media_url, qr_background_url, ...eventSafe } = event;
+    const eventForClient = {
+      ...eventSafe,
+      has_logo:    event_logo_url != null,
+      has_media:   invitation_media_url != null,
+      has_qr_bg:   qr_background_url != null,
+    };
+    return Response.json({ event: eventForClient }, { status: 201 });
   } catch (err) {
     if (err.status) return Response.json({ error: err.message }, { status: err.status });
     console.error('[POST /api/events]', err);
