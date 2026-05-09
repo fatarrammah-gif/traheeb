@@ -11,10 +11,19 @@ import sql from '../../../utils/sql.js';
 const SALT = 'authjs.session-token';
 const JWT_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
 
+function normalizePhone(raw) {
+  let p = (raw ?? '').trim().replace(/[\s\-().]/g, '');
+  if (p.startsWith('00')) p = '+' + p.slice(2);
+  if (p.startsWith('05') && p.length === 10) p = '+966' + p.slice(1);
+  if (p.startsWith('5')  && p.length === 9)  p = '+966' + p;
+  if (!p.startsWith('+')) p = '+' + p;
+  return p;
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const phone = (body.phone ?? '').trim();
+    const phone = normalizePhone(body.phone);
     const code  = (body.code  ?? '').trim();
     const name  = (body.name  ?? '').trim() || 'مستخدم تراحيب';
 

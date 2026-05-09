@@ -14,10 +14,20 @@ const twilioClient = twilio(
 );
 const FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
 
+/** Normalize to E.164: strip spaces/dashes, add +966 for Saudi local numbers */
+function normalizePhone(raw) {
+  let p = (raw ?? '').trim().replace(/[\s\-().]/g, '');
+  if (p.startsWith('00')) p = '+' + p.slice(2);
+  if (p.startsWith('05') && p.length === 10) p = '+966' + p.slice(1);
+  if (p.startsWith('5')  && p.length === 9)  p = '+966' + p;
+  if (!p.startsWith('+')) p = '+' + p;
+  return p;
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const phone = (body.phone ?? '').trim();
+    const phone = normalizePhone(body.phone);
 
     if (!phone || !/^\+?[0-9]{8,15}$/.test(phone.replace(/\s/g, ''))) {
       return Response.json({ error: 'رقم الجوال غير صحيح' }, { status: 400 });
