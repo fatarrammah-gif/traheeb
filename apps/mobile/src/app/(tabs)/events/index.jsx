@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -44,7 +44,11 @@ const FILTERS = ["الكل", "مؤتمر", "ورشة عمل", "إطلاق", "ل�
 export default function EventsList() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { events } = useEventStore();
+  const { events, fetchEvents } = useEventStore();
+
+  useEffect(() => {
+    fetchEvents().catch((err) => console.error('[events tab fetchEvents]', err?.message));
+  }, []);
 
   const [search, setSearch] = useState("");
   // change initial filter to match the Arabic "All" pill

@@ -160,7 +160,7 @@ export default function Dashboard() {
   const [notifCount] = useState(3);
 
   useEffect(() => {
-    fetchEvents().catch(() => {});
+    fetchEvents().catch((err) => console.error('[fetchEvents]', err?.message));
   }, []);
 
   const totalGuests = events.reduce((acc, e) => acc + (e.guests?.length ?? 0), 0);
