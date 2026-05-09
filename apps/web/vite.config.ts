@@ -29,6 +29,13 @@ export default defineConfig({
       '@auth/core/errors',
       'fsevents',
       'lightningcss',
+      // whatsapp-web.js server-only deps — keep out of browser bundle
+      'whatsapp-web.js',
+      'unzipper',
+      '@aws-sdk/client-s3',
+      'readable-stream',
+      'puppeteer',
+      'qrcode',
     ],
   },
   logLevel: 'info',
