@@ -37,7 +37,7 @@ export async function sendText(userId, phone, text) {
 export async function sendMedia(userId, phone, caption, mediaUrl) {
   const client = getClient(userId);
   const res = await fetch(mediaUrl);
-  if (!res.ok) throw new Error(`Could not download media: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Could not download media: HTTP ${res.status} — ${mediaUrl}`);
   const buf = Buffer.from(await res.arrayBuffer());
 
   // Strip charset/boundary params — WhatsApp only accepts the bare mime type.

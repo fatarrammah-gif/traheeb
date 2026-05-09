@@ -372,7 +372,7 @@ export default function CreateEvent() {
 
     const formData = new FormData();
     formData.append('UPLOADCARE_PUB_KEY', publicKey);
-    formData.append('UPLOADCARE_STORE', 'auto');
+    formData.append('UPLOADCARE_STORE', '1');  // force permanent storage
     formData.append('file', {
       uri: asset.uri,
       name: asset.fileName || asset.uri.split('/').pop() || 'upload',
