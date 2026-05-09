@@ -33,7 +33,6 @@ import {
   Check,
   Trash2,
 } from "lucide-react-native";
-import { readAsStringAsync } from "expo-file-system";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import useEventStore from "@/store/eventStore";
@@ -353,6 +352,7 @@ export default function CreateEvent() {
       mediaTypes: mediaType === "video" ? ["videos"] : ["images"],
       allowsEditing: formKey !== "invitationMedia",
       quality: formKey === "qrBackground" ? 1 : 0.85,
+      base64: true,
     };
     const res = await ExpoImagePicker.launchImageLibraryAsync(opts);
     if (res.canceled) return;
@@ -365,28 +365,25 @@ export default function CreateEvent() {
   };
 
   /**
-   * Compress image to max 900px, read as base64, return a data URI.
-   * Videos are passed through as-is (base64 read directly).
-   * Returns null if no asset provided.
+   * Convert a picked asset to a base64 data URI for storage in the DB.
+   * Images are compressed first; videos use picker base64 directly.
    */
   const uploadAsset = async (asset) => {
     if (!asset) return null;
     const isVideo = asset.mimeType?.startsWith('video') || asset.type === 'video';
     try {
       if (isVideo) {
-        // Videos: read raw base64 — no compression
-        const b64 = await readAsStringAsync(asset.uri, { encoding: 'base64' });
+        // Videos: use base64 returned directly by the image picker
         const mime = asset.mimeType || 'video/mp4';
-        return `data:${mime};base64,${b64}`;
+        return `data:${mime};base64,${asset.base64}`;
       } else {
-        // Images: compress to max 900px wide at 80% quality first
+        // Images: compress to 900px first, then use manipulator's base64 output
         const compressed = await manipulateAsync(
           asset.uri,
           [{ resize: { width: 900 } }],
-          { compress: 0.8, format: SaveFormat.JPEG },
+          { compress: 0.8, format: SaveFormat.JPEG, base64: true },
         );
-        const b64 = await readAsStringAsync(compressed.uri, { encoding: 'base64' });
-        return `data:image/jpeg;base64,${b64}`;
+        return `data:image/jpeg;base64,${compressed.base64}`;
       }
     } catch (err) {
       console.error('[uploadAsset] error:', err.message);
