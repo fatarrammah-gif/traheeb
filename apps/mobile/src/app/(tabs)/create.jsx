@@ -368,7 +368,6 @@ export default function CreateEvent() {
   const uploadAsset = (asset) => new Promise((resolve, reject) => {
     if (!asset) return resolve(null);
     const publicKey = process.env.EXPO_PUBLIC_UPLOADCARE_PUBLIC_KEY;
-    console.log('[uploadAsset] publicKey:', publicKey ? publicKey.slice(0, 6) + '…' : 'MISSING');
     if (!publicKey) return resolve(null);
 
     const formData = new FormData();
@@ -383,13 +382,10 @@ export default function CreateEvent() {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', 'https://upload.uploadcare.com/base/');
     xhr.onload = () => {
-      console.log('[uploadAsset] status:', xhr.status, 'body:', xhr.responseText.slice(0, 150));
       try {
         const data = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300 && data.file) {
-          const url = `https://ucarecdn.com/${data.file}/`;
-          console.log('[uploadAsset] url:', url);
-          resolve(url);
+          resolve(`https://ucarecdn.com/${data.file}/`);
         } else {
           reject(new Error(`Upload failed: ${xhr.status} — ${xhr.responseText}`));
         }
@@ -426,11 +422,9 @@ export default function CreateEvent() {
     }
     setSaving(true);
     try {
-      const [logoUrl, mediaUrl, qrBgUrl] = await Promise.all([
-        uploadAsset(form.eventLogo),
-        uploadAsset(form.invitationMedia),
-        uploadAsset(form.qrBackground),
-      ]);
+      const logoUrl  = await uploadAsset(form.eventLogo);
+      const mediaUrl = await uploadAsset(form.invitationMedia);
+      const qrBgUrl  = await uploadAsset(form.qrBackground);
       await createEvent({
         name: form.name,
         date: form.date,
