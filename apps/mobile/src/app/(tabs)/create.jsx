@@ -367,27 +367,26 @@ export default function CreateEvent() {
 
   const uploadAsset = (asset) => new Promise((resolve, reject) => {
     if (!asset) return resolve(null);
-    const publicKey = process.env.EXPO_PUBLIC_UPLOADCARE_PUBLIC_KEY;
-    if (!publicKey) return resolve(null);
+    const apiKey = process.env.EXPO_PUBLIC_IMGBB_API_KEY;
+    if (!apiKey) return resolve(null);
 
     const formData = new FormData();
-    formData.append('UPLOADCARE_PUB_KEY', publicKey);
-    formData.append('UPLOADCARE_STORE', '1');  // force permanent storage
-    formData.append('file', {
+    formData.append('key', apiKey);
+    formData.append('image', {
       uri: asset.uri,
-      name: asset.fileName || asset.uri.split('/').pop() || 'upload',
-      type: asset.mimeType || 'application/octet-stream',
+      name: asset.fileName || asset.uri.split('/').pop() || 'upload.jpg',
+      type: asset.mimeType || 'image/jpeg',
     });
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'https://upload.uploadcare.com/base/');
+    xhr.open('POST', 'https://api.imgbb.com/1/upload');
     xhr.onload = () => {
       try {
         const data = JSON.parse(xhr.responseText);
-        if (xhr.status >= 200 && xhr.status < 300 && data.file) {
-          resolve(`https://ucarecdn.com/${data.file}/`);
+        if (data.success && data.data?.url) {
+          resolve(data.data.url);
         } else {
-          reject(new Error(`Upload failed: ${xhr.status} — ${xhr.responseText}`));
+          reject(new Error(`Upload failed: ${xhr.status} — ${xhr.responseText.slice(0, 120)}`));
         }
       } catch {
         reject(new Error('Upload failed: invalid response'));
