@@ -33,7 +33,7 @@ import {
   Check,
   Trash2,
 } from "lucide-react-native";
-import * as FileSystem from "expo-file-system";
+import { readAsStringAsync, EncodingType } from "expo-file-system";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import useEventStore from "@/store/eventStore";
@@ -378,8 +378,8 @@ export default function CreateEvent() {
     try {
       if (isVideo) {
         // Videos: read raw base64 — no compression
-        const b64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+        const b64 = await readAsStringAsync(asset.uri, {
+          encoding: EncodingType.Base64,
         });
         const mime = asset.mimeType || 'video/mp4';
         return `data:${mime};base64,${b64}`;
@@ -390,8 +390,8 @@ export default function CreateEvent() {
           [{ resize: { width: 900 } }],
           { compress: 0.8, format: SaveFormat.JPEG },
         );
-        const b64 = await FileSystem.readAsStringAsync(compressed.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+        const b64 = await readAsStringAsync(compressed.uri, {
+          encoding: EncodingType.Base64,
         });
         return `data:image/jpeg;base64,${b64}`;
       }
