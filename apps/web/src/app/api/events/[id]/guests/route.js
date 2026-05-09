@@ -117,10 +117,7 @@ async function sendInvitations(userId, event, guests) {
 
     try {
       if (event.invitation_media_url) {
-        const mimeType = event.invitation_media_url.match(/\.(mp4|mov|avi)$/i)
-          ? 'video/mp4'
-          : 'image/jpeg';
-        await sendMedia(userId, guest.phone, text, event.invitation_media_url, mimeType);
+        await sendMedia(userId, guest.phone, text, event.invitation_media_url);
       } else {
         await sendText(userId, guest.phone, text);
       }

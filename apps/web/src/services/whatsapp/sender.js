@@ -16,13 +16,18 @@ export async function sendText(userId, phone, text) {
 }
 
 /**
- * Send a media message (image or video) with caption + optional link button text.
- * mediaUrl is fetched and sent as a buffer.
+ * Send a media message (image or video) with caption.
+ * Fetches the file directly so we get the real Content-Type from response
+ * headers — Uploadcare URLs have no extension so we can't guess the type.
  */
-export async function sendMedia(userId, phone, caption, mediaUrl, mimeType) {
+export async function sendMedia(userId, phone, caption, mediaUrl) {
   const client = getClient(userId);
-  const media = await MessageMedia.fromUrl(mediaUrl, { unsafeMime: true });
-  if (mimeType) media.mimetype = mimeType;
+  const res = await fetch(mediaUrl);
+  if (!res.ok) throw new Error(`Could not download media: HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const contentType = res.headers.get('content-type') || 'image/jpeg';
+  const ext = contentType.split('/')[1]?.split(';')[0]?.trim() || 'jpg';
+  const media = new MessageMedia(contentType, buf.toString('base64'), `media.${ext}`);
   await client.sendMessage(toJid(phone), media, { caption });
 }
 
