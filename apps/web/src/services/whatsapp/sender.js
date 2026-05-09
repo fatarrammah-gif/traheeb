@@ -5,6 +5,20 @@ import { getClient } from './SessionManager.js';
 import pkg from 'whatsapp-web.js';
 const { MessageMedia } = pkg;
 
+const MIME_MAP = {
+  jpg:  'image/jpeg',
+  jpeg: 'image/jpeg',
+  png:  'image/png',
+  gif:  'image/gif',
+  webp: 'image/webp',
+  mp4:  'video/mp4',
+  mov:  'video/quicktime',
+  avi:  'video/x-msvideo',
+  mp3:  'audio/mpeg',
+  ogg:  'audio/ogg',
+  pdf:  'application/pdf',
+};
+
 function toJid(phone) {
   return `${phone.replace(/[^0-9]/g, '')}@c.us`;
 }
@@ -25,9 +39,26 @@ export async function sendMedia(userId, phone, caption, mediaUrl) {
   const res = await fetch(mediaUrl);
   if (!res.ok) throw new Error(`Could not download media: HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
-  const contentType = res.headers.get('content-type') || 'image/jpeg';
-  const ext = contentType.split('/')[1]?.split(';')[0]?.trim() || 'jpg';
-  const media = new MessageMedia(contentType, buf.toString('base64'), `media.${ext}`);
+
+  // Strip charset/boundary params — WhatsApp only accepts the bare mime type.
+  // e.g. "image/jpeg; charset=utf-8"  →  "image/jpeg"
+  let mimeType = (res.headers.get('content-type') || '').split(';')[0].trim();
+
+  // If response gives a generic type, fall back to extension-based detection.
+  if (!mimeType || mimeType === 'application/octet-stream') {
+    const urlExt = mediaUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+    mimeType = MIME_MAP[urlExt] ?? 'image/jpeg';
+  }
+
+  // Derive a sensible filename extension from the mime type.
+  const extFromMime =
+    Object.entries(MIME_MAP).find(([, v]) => v === mimeType)?.[0] ?? 'jpg';
+
+  const media = new MessageMedia(
+    mimeType,
+    buf.toString('base64'),
+    `media.${extFromMime}`,
+  );
   await client.sendMessage(toJid(phone), media, { caption });
 }
 
