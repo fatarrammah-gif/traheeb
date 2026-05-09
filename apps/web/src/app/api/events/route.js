@@ -7,6 +7,7 @@ import sql from '../utils/sql.js';
 import { isConnected } from '../../../services/whatsapp/SessionManager.js';
 import { sendText } from '../../../services/whatsapp/sender.js';
 import { eventCreatedMessage } from '../../../services/whatsapp/templates.js';
+import { uploadToUploadcare } from '../../../services/uploadcare.js';
 
 export async function GET(request) {
   try {
@@ -48,11 +49,29 @@ export async function POST(request) {
       name, date, time, category = 'أخرى', capacity = 100,
       venue, location, map_lat, map_lng,
       invitation_text, reminder = '24hours',
-      event_logo_url, invitation_media_url, qr_background_url,
+      event_logo_url: rawLogoUrl,
+      invitation_media_url: rawMediaUrl,
+      qr_background_url: rawQrBgUrl,
     } = body;
 
     if (!name || !date || !time || !venue) {
       return Response.json({ error: 'الاسم والتاريخ والوقت والمكان مطلوبة' }, { status: 400 });
+    }
+
+    // Upload base64 data URIs to Uploadcare → get CDN URLs
+    // If Uploadcare is not configured, falls back to null (no media)
+    let event_logo_url = null;
+    let invitation_media_url = null;
+    let qr_background_url = null;
+    try {
+      [event_logo_url, invitation_media_url, qr_background_url] = await Promise.all([
+        uploadToUploadcare(rawLogoUrl),
+        uploadToUploadcare(rawMediaUrl),
+        uploadToUploadcare(rawQrBgUrl),
+      ]);
+    } catch (uploadErr) {
+      console.error('[events POST] media upload failed:', uploadErr.message);
+      // Continue without media rather than failing the whole request
     }
 
     const [event] = await sql`
@@ -65,7 +84,7 @@ export async function POST(request) {
         ${user.id}, ${name}, ${date}, ${time}, ${category}, ${capacity},
         ${venue}, ${location ?? null}, ${map_lat ?? null}, ${map_lng ?? null},
         ${invitation_text ?? null}, ${reminder},
-        ${event_logo_url ?? null}, ${invitation_media_url ?? null}, ${qr_background_url ?? null}
+        ${event_logo_url}, ${invitation_media_url}, ${qr_background_url}
       )
       RETURNING *
     `;

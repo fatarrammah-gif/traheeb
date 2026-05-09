@@ -352,7 +352,6 @@ export default function CreateEvent() {
       mediaTypes: mediaType === "video" ? ["videos"] : ["images"],
       allowsEditing: formKey !== "invitationMedia",
       quality: 0.7,
-      base64: false,
     };
     const res = await ExpoImagePicker.launchImageLibraryAsync(opts);
     if (res.canceled) return;
