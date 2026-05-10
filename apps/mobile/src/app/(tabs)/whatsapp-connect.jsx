@@ -34,10 +34,14 @@ export default function WhatsAppConnect() {
   const [status, setStatus] = useState('idle'); // idle | loading | qr_ready | connected | error
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const pollRef = useRef(null);
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     checkStatus();
-    return () => clearInterval(pollRef.current);
+    return () => {
+      clearInterval(pollRef.current);
+      clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   async function checkStatus() {
@@ -75,6 +79,15 @@ export default function WhatsAppConnect() {
         setStatus('loading');
       }
       startPolling();
+      // Timeout: if no QR after 30s, show error
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        if (status !== 'qr_ready' && status !== 'connected') {
+          console.error('[WA connect] timeout — no QR after 30s');
+          setStatus('error');
+          clearInterval(pollRef.current);
+        }
+      }, 30000);
     } catch (err) {
       console.error('[WA connect] error:', err?.message);
       setStatus('error');
