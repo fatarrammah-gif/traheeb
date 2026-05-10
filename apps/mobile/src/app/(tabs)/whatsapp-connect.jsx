@@ -59,8 +59,11 @@ export default function WhatsAppConnect() {
     setQrDataUrl(null);
     clearInterval(pollRef.current);
     try {
+      console.log('[WA connect] calling POST /api/whatsapp/connect');
       const res = await fetchToWeb('/api/whatsapp/connect', { method: 'POST' });
+      console.log('[WA connect] HTTP status:', res.status);
       const data = await res.json();
+      console.log('[WA connect] response:', JSON.stringify(data).slice(0, 120));
       if (data.connected) {
         setStatus('connected');
         return;
@@ -72,7 +75,8 @@ export default function WhatsAppConnect() {
         setStatus('loading');
       }
       startPolling();
-    } catch {
+    } catch (err) {
+      console.error('[WA connect] error:', err?.message);
       setStatus('error');
     }
   }
