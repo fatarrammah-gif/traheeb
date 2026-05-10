@@ -370,7 +370,7 @@ export default function CreateEvent() {
   const uploadAsset = async (asset) => {
     if (!asset) return null;
     const isVideo = asset.mimeType?.startsWith('video') || asset.type === 'video';
-    console.log('[uploadAsset] uri:', asset.uri?.slice(0, 60), 'isVideo:', isVideo);
+    console.log('[uploadAsset] isVideo:', isVideo);
     try {
       if (isVideo) return null;
       const compressed = await manipulateAsync(
@@ -378,7 +378,7 @@ export default function CreateEvent() {
         [{ resize: { width: 800 } }],
         { compress: 0.7, format: SaveFormat.JPEG, base64: true },
       );
-      console.log('[uploadAsset] compressed.base64 length:', compressed.base64?.length);
+      console.log('[uploadAsset] compressed size:', compressed.base64?.length ?? 0, 'bytes');
       if (!compressed.base64) {
         console.error('[uploadAsset] no base64 returned from manipulateAsync');
         return null;
@@ -423,9 +423,7 @@ export default function CreateEvent() {
       const logoUrl  = await uploadAsset(form.eventLogo);
       const mediaUrl = await uploadAsset(form.invitationMedia);
       const qrBgUrl  = await uploadAsset(form.qrBackground);
-      console.log('[save] logoUrl:', logoUrl);
-      console.log('[save] mediaUrl:', mediaUrl);
-      console.log('[save] qrBgUrl:', qrBgUrl);
+      console.log('[save] sizes:', logoUrl?.length ?? 0, mediaUrl?.length ?? 0, qrBgUrl?.length ?? 0);
       await createEvent({
         name: form.name,
         date: form.date,
