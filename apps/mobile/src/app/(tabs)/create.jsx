@@ -370,26 +370,27 @@ export default function CreateEvent() {
   const uploadAsset = async (asset) => {
     if (!asset) return null;
     const isVideo = asset.mimeType?.startsWith('video') || asset.type === 'video';
+    console.log('[uploadAsset] uri:', asset.uri?.slice(0, 60), 'isVideo:', isVideo);
     try {
-      if (isVideo) {
-        // Videos: skip — too large for base64 in DB, send text invitation only
-        return null;
-      }
-      // Compress aggressively: max 800px, 70% quality
+      if (isVideo) return null;
       const compressed = await manipulateAsync(
         asset.uri,
         [{ resize: { width: 800 } }],
         { compress: 0.7, format: SaveFormat.JPEG, base64: true },
       );
+      console.log('[uploadAsset] compressed.base64 length:', compressed.base64?.length);
+      if (!compressed.base64) {
+        console.error('[uploadAsset] no base64 returned from manipulateAsync');
+        return null;
+      }
       const dataUri = `data:image/jpeg;base64,${compressed.base64}`;
-      // Warn if still too large (>3MB base64 = ~2.2MB image)
       if (dataUri.length > 3 * 1024 * 1024) {
-        console.warn('[uploadAsset] image too large after compression, skipping');
+        console.warn('[uploadAsset] too large:', dataUri.length, 'bytes — skipping');
         return null;
       }
       return dataUri;
     } catch (err) {
-      console.error('[uploadAsset] error:', err.message);
+      console.error('[uploadAsset] FULL error:', err);
       return null;
     }
   };
