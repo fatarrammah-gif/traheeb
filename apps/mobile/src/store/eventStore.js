@@ -42,16 +42,21 @@ const useEventStore = create((set, get) => ({
       body: JSON.stringify({ guests }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "فشل إرسال الدعوات");
+    // 201 = sent, 202 = saved but WhatsApp disconnected
+    if (res.status !== 201 && res.status !== 202) {
+      throw new Error(data.error || "فشل إرسال الدعوات");
+    }
 
     // Merge new guests into the cached event
-    set((state) => ({
-      events: state.events.map((e) =>
-        e.id === eventId
-          ? { ...e, guests: [...(e.guests ?? []), ...data.guests] }
-          : e,
-      ),
-    }));
+    if (data.guests?.length) {
+      set((state) => ({
+        events: state.events.map((e) =>
+          e.id === eventId
+            ? { ...e, guests: [...(e.guests ?? []), ...data.guests] }
+            : e,
+        ),
+      }));
+    }
     return data;
   },
 

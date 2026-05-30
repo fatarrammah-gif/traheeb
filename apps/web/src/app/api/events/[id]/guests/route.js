@@ -4,12 +4,11 @@
  */
 import { authenticate } from '../../../utils/auth.js';
 import sql from '../../../utils/sql.js';
-import { isConnected } from '../../../../../services/whatsapp/SessionManager.js';
-import { sendText, sendMedia } from '../../../../../services/whatsapp/sender.js';
-import { invitationMessage } from '../../../../../services/whatsapp/templates.js';
+import { sendInvitationTemplate } from '../../../../../services/whatsapp/metaSender.js';
 import crypto from 'crypto';
 
-const BASE_URL = process.env.BASE_URL || 'https://traheeb.com';
+const BASE_URL = process.env.BASE_URL || 'https://traheeb-production.up.railway.app';
+
 
 async function getOwnedEvent(eventId, userId) {
   const rows = await sql`
@@ -86,13 +85,12 @@ export async function POST(request, { params }) {
       if (guest) inserted.push(guest);
     }
 
-    // Send WhatsApp invitations (non-blocking, organizer's session)
-    console.log(`[guests] connected=${isConnected(user.id)} media_url=${event.invitation_media_url ?? 'NULL'}`);
-    if (isConnected(user.id) && inserted.length) {
-      sendInvitations(user.id, event, inserted).catch(err =>
-        console.error('[send invitations]', err)
-      );
-    }
+    console.log(`[guests] inserted=${inserted.length} media_url=${event.invitation_media_url ?? 'NULL'}`);
+
+    // Send via Meta Cloud API in the background — guests already saved to DB
+    sendInvitations(event, inserted).catch(err =>
+      console.error('[send invitations error]', err.message)
+    );
 
     return Response.json({ guests: inserted, sent: inserted.length }, { status: 201 });
   } catch (err) {
@@ -102,36 +100,41 @@ export async function POST(request, { params }) {
   }
 }
 
-async function sendInvitations(userId, event, guests) {
+/** Build a Google Maps link for the event location. */
+function buildLocationLink(event) {
+  if (event.map_lat && event.map_lng) {
+    return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
+  }
+  const query = [event.venue, event.location].filter(Boolean).join(' ');
+  return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+}
+
+async function sendInvitations(event, guests) {
+  const locationLink = buildLocationLink(event);
+
   for (const guest of guests) {
-    const confirmUrl = `${BASE_URL}/confirm/${guest.invitation_token}`;
-    const declineUrl = `${BASE_URL}/decline/${guest.invitation_token}`;
+    const confirmUrl = `${BASE_URL}/api/confirm/${guest.invitation_token}`;
+    const companionsLabel = String(guest.companions || 0);
 
-    const text = invitationMessage({
-      guestName: guest.name,
-      invitationText: event.invitation_text,
-      event,
-      companions: guest.companions,
-      confirmUrl,
-      declineUrl,
-    });
-
+    console.log(`[invite] sending Meta template to phone="${guest.phone}"`);
     try {
-      if (event.invitation_media_url) {
-        try {
-          await sendMedia(userId, guest.phone, text, event.invitation_media_url);
-        } catch (mediaErr) {
-          console.error(`[media failed for ${guest.phone}] ${mediaErr.message} — falling back to text`);
-          await sendText(userId, guest.phone, text);
-        }
-      } else {
-        await sendText(userId, guest.phone, text);
-      }
+      await sendInvitationTemplate({
+        phone: guest.phone,
+        guestName: guest.name,
+        invitationText: event.invitation_text || '',
+        date: event.date || '',
+        time: event.time || '',
+        venueName: [event.venue, event.location].filter(Boolean).join('، '),
+        companionsLabel,
+        confirmUrl,
+        imageUrl: event.invitation_media_url || null,
+      });
+      console.log(`[invite] template sent to ${guest.phone}`);
     } catch (err) {
-      console.error(`[invitation failed for ${guest.phone}]`, err.message);
+      console.error(`[invite] FAILED for ${guest.phone}:`, err.message);
     }
 
-    // Small delay to avoid WhatsApp rate limiting
-    await new Promise(r => setTimeout(r, 800));
+    // Small delay to stay within Meta rate limits
+    await new Promise(r => setTimeout(r, 500));
   }
 }

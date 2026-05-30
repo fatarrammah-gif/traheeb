@@ -1,46 +1,76 @@
 /**
  * WhatsApp message sending helpers (whatsapp-web.js).
  */
-import { getClient } from './SessionManager.js';
 import pkg from 'whatsapp-web.js';
 const { MessageMedia } = pkg;
 
+import { getClient, toWhatsAppJid, markSessionDead } from './SessionManager.js';
 
-function toJid(phone) {
-  return `${phone.replace(/[^0-9]/g, '')}@c.us`;
+/**
+ * Returns true when the error indicates the Puppeteer frame/session has died.
+ * In this case the session must be destroyed and re-created.
+ */
+function isDeadSessionError(err) {
+  const msg = err?.message ?? '';
+  return (
+    msg.includes('detached Frame') ||
+    msg.includes('Execution context was destroyed') ||
+    msg.includes('Session closed') ||
+    msg.includes('Target closed') ||
+    msg.includes('Protocol error')
+  );
 }
 
 /** Send a plain text message. */
 export async function sendText(userId, phone, text) {
   const client = getClient(userId);
-  await client.sendMessage(toJid(phone), text);
+  try {
+    await client.sendMessage(toWhatsAppJid(phone), text);
+  } catch (err) {
+    if (isDeadSessionError(err)) {
+      console.error(`[WhatsApp] Dead session detected on sendText userId=${userId}: ${err.message}`);
+      markSessionDead(userId);
+    }
+    throw err;
+  }
 }
 
 /**
  * Send a media message (image or video) with caption.
- * mediaSource can be:
- *   - a data URI:  "data:image/jpeg;base64,/9j/..."  (stored in DB, used directly)
- *   - a plain URL: "https://..."                     (downloaded first)
+ * mediaSource can be a data URI ("data:image/jpeg;base64,...") or a URL.
  */
 export async function sendMedia(userId, phone, caption, mediaSource) {
   const client = getClient(userId);
-  let media;
+  const jid = toWhatsAppJid(phone);
+
+  let base64data;
+  let mimetype;
 
   if (mediaSource.startsWith('data:')) {
-    // Already base64 — parse and build MessageMedia directly, no network call needed
-    const [header, data] = mediaSource.split(',');
-    const mimeType = header.replace('data:', '').replace(';base64', '');
-    const ext = mimeType.split('/')[1]?.split(';')[0] ?? 'jpg';
-    media = new MessageMedia(mimeType, data, `media.${ext}`);
-    console.log(`[sendMedia] using base64 data uri, mime=${mimeType} size=${data.length}`);
+    const [header, b64] = mediaSource.split(',');
+    mimetype = header.replace('data:', '').replace(';base64', '');
+    base64data = b64;
+    console.log(`[sendMedia] using base64 data uri mime=${mimetype}`);
   } else {
-    // Plain URL — download it
     console.log(`[sendMedia] downloading: ${mediaSource}`);
-    media = await MessageMedia.fromUrl(mediaSource, { unsafeMime: true });
-    console.log(`[sendMedia] downloaded mime=${media.mimetype}`);
+    const res = await fetch(mediaSource);
+    if (!res.ok) throw new Error(`HTTP ${res.status} downloading media`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    mimetype = res.headers.get('content-type') || 'image/jpeg';
+    base64data = buffer.toString('base64');
+    console.log(`[sendMedia] downloaded mime=${mimetype} size=${buffer.length}`);
   }
 
-  await client.sendMessage(toJid(phone), media, { caption });
+  try {
+    const media = new MessageMedia(mimetype, base64data);
+    await client.sendMessage(jid, media, { caption });
+  } catch (err) {
+    if (isDeadSessionError(err)) {
+      console.error(`[WhatsApp] Dead session detected on sendMedia userId=${userId}: ${err.message}`);
+      markSessionDead(userId);
+    }
+    throw err;
+  }
 }
 
 /**
@@ -48,11 +78,18 @@ export async function sendMedia(userId, phone, caption, mediaSource) {
  */
 export async function sendImages(userId, phone, imageBuffers, caption = '') {
   const client = getClient(userId);
-  const jid = toJid(phone);
+  const jid = toWhatsAppJid(phone);
   for (let i = 0; i < imageBuffers.length; i++) {
-    const b64 = imageBuffers[i].toString('base64');
-    const media = new MessageMedia('image/png', b64, `qr-${i + 1}.png`);
-    await client.sendMessage(jid, media, { caption: i === 0 ? caption : '' });
+    try {
+      const media = new MessageMedia('image/png', imageBuffers[i].toString('base64'));
+      await client.sendMessage(jid, media, { caption: i === 0 ? caption : '' });
+    } catch (err) {
+      if (isDeadSessionError(err)) {
+        console.error(`[WhatsApp] Dead session detected on sendImages userId=${userId}: ${err.message}`);
+        markSessionDead(userId);
+      }
+      throw err;
+    }
     if (i < imageBuffers.length - 1) {
       await new Promise((r) => setTimeout(r, 800));
     }

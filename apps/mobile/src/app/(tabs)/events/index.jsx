@@ -55,9 +55,10 @@ export default function EventsList() {
   const [activeFilter, setActiveFilter] = useState("الكل");
 
   const filtered = events.filter((e) => {
+    const q = search.toLowerCase();
     const matchesSearch =
-      e.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.venue.toLowerCase().includes(search.toLowerCase());
+      (e.name ?? '').toLowerCase().includes(q) ||
+      (e.venue ?? '').toLowerCase().includes(q);
     const matchesFilter =
       activeFilter === "الكل" || e.category === activeFilter;
     return matchesSearch && matchesFilter;
@@ -348,7 +349,7 @@ export default function EventsList() {
                       color: C.fgMuted,
                     }}
                   >
-                    {event.guests.length} ضيف
+                    {event.guests?.length ?? 0} ضيف
                   </Text>
                   <Users size={11} color={C.fgMuted} />
                 </View>

@@ -1,7 +1,6 @@
 /**
- * WhatsApp Connect Screen
- * Organizer links their personal WhatsApp once so invitations are sent from their number.
- * Shows a QR code (from whatsapp-web.js) for the organizer to scan.
+ * WhatsApp Connect Screen — QR code linking via Baileys.
+ * No Chrome/Puppeteer. QR arrives in ~3-8 seconds.
  */
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -34,14 +33,10 @@ export default function WhatsAppConnect() {
   const [status, setStatus] = useState('idle'); // idle | loading | qr_ready | connected | error
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const pollRef = useRef(null);
-  const timeoutRef = useRef(null);
 
   useEffect(() => {
     checkStatus();
-    return () => {
-      clearInterval(pollRef.current);
-      clearTimeout(timeoutRef.current);
-    };
+    return () => clearInterval(pollRef.current);
   }, []);
 
   async function checkStatus() {
@@ -63,31 +58,15 @@ export default function WhatsAppConnect() {
     setQrDataUrl(null);
     clearInterval(pollRef.current);
     try {
-      console.log('[WA connect] calling POST /api/whatsapp/connect');
       const res = await fetchToWeb('/api/whatsapp/connect', { method: 'POST' });
-      console.log('[WA connect] HTTP status:', res.status);
       const data = await res.json();
-      console.log('[WA connect] response:', JSON.stringify(data).slice(0, 120));
+
       if (data.connected) {
         setStatus('connected');
         return;
       }
-      if (data.qrDataUrl) {
-        setQrDataUrl(data.qrDataUrl);
-        setStatus('qr_ready');
-      } else {
-        setStatus('loading');
-      }
+      // Server returns immediately (starting: true) — poll status for QR
       startPolling();
-      // Timeout: if no QR after 30s, show error
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        if (status !== 'qr_ready' && status !== 'connected') {
-          console.error('[WA connect] timeout — no QR after 30s');
-          setStatus('error');
-          clearInterval(pollRef.current);
-        }
-      }, 30000);
     } catch (err) {
       console.error('[WA connect] error:', err?.message);
       setStatus('error');
@@ -105,9 +84,11 @@ export default function WhatsAppConnect() {
           setQrDataUrl(null);
           clearInterval(pollRef.current);
         } else if (data.qrDataUrl) {
+          // QR rotates every ~20 s — keep it fresh
           setQrDataUrl(data.qrDataUrl);
           setStatus('qr_ready');
         }
+        // else still starting — keep polling (status stays 'loading')
       } catch {}
     }, 3000);
   }
@@ -133,9 +114,7 @@ export default function WhatsAppConnect() {
           <Text style={{ color: '#FFF', fontSize: 26 }}>‹</Text>
         </TouchableOpacity>
         <View>
-          <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 18 }}>
-            ربط واتساب
-          </Text>
+          <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 18 }}>ربط واتساب</Text>
           <Text style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', fontSize: 12 }}>
             أرسل الدعوات من رقمك الشخصي
           </Text>
@@ -151,7 +130,8 @@ export default function WhatsAppConnect() {
         contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 40, alignItems: 'center' }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Connected */}
+
+        {/* ── Connected ── */}
         {status === 'connected' && (
           <View style={{ alignItems: 'center', marginTop: 40, gap: 16 }}>
             <View style={{
@@ -160,11 +140,9 @@ export default function WhatsAppConnect() {
             }}>
               <CheckCircle size={50} color={T.green} />
             </View>
-            <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 22, color: T.green }}>
-              واتساب مرتبط ✓
-            </Text>
+            <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 22, color: T.green }}>واتساب مرتبط ✓</Text>
             <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: T.muted, textAlign: 'center', lineHeight: 22 }}>
-              سيتم إرسال الدعوات من رقمك الشخصي تلقائياً عند دعوة الضيوف
+              سيتم إرسال الدعوات من رقمك الشخصي تلقائياً
             </Text>
             <TouchableOpacity
               onPress={() => router.replace('/(tabs)')}
@@ -175,7 +153,7 @@ export default function WhatsAppConnect() {
           </View>
         )}
 
-        {/* Idle */}
+        {/* ── Idle ── */}
         {status === 'idle' && (
           <View style={{ alignItems: 'center', marginTop: 40, gap: 18 }}>
             <View style={{
@@ -188,7 +166,7 @@ export default function WhatsAppConnect() {
               ربط حساب واتساب
             </Text>
             <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: T.muted, textAlign: 'center', lineHeight: 22 }}>
-              اربط رقمك الشخصي لإرسال الدعوات للمدعوين مباشرةً من حسابك في واتساب
+              اربط رقمك الشخصي لإرسال الدعوات من حسابك في واتساب
             </Text>
             <TouchableOpacity
               onPress={startConnect}
@@ -199,25 +177,37 @@ export default function WhatsAppConnect() {
           </View>
         )}
 
-        {/* Loading */}
+        {/* ── Loading (waiting for QR) ── */}
         {status === 'loading' && (
           <View style={{ alignItems: 'center', marginTop: 60, gap: 20 }}>
             <ActivityIndicator size="large" color={T.primary} />
             <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 15, color: T.muted }}>
-              جاري تحضير رمز الربط...
+              جاري تحضير رمز QR...
+            </Text>
+            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: T.muted }}>
+              قد يستغرق هذا بضع ثوانٍ
             </Text>
           </View>
         )}
 
-        {/* QR Code */}
+        {/* ── QR Ready ── */}
         {status === 'qr_ready' && qrDataUrl && (
-          <View style={{ alignItems: 'center', marginTop: 16, gap: 16, width: '100%' }}>
+          <View style={{ alignItems: 'center', marginTop: 8, gap: 16, width: '100%' }}>
             <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: T.text }}>
               امسح الرمز بواتساب
             </Text>
 
-            <View style={{ borderWidth: 2, borderColor: T.border, borderRadius: 16, padding: 12, backgroundColor: '#FFF' }}>
-              <Image source={{ uri: qrDataUrl }} style={{ width: 240, height: 240 }} contentFit="contain" />
+            <View style={{
+              borderWidth: 2, borderColor: T.border, borderRadius: 20,
+              padding: 14, backgroundColor: '#FFF',
+              shadowColor: '#8A004F', shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.12, shadowRadius: 12, elevation: 6,
+            }}>
+              <Image
+                source={{ uri: qrDataUrl }}
+                style={{ width: 260, height: 260 }}
+                contentFit="contain"
+              />
             </View>
 
             <View style={{ backgroundColor: T.primarySoft, borderRadius: 14, padding: 18, width: '100%', gap: 12 }}>
@@ -230,7 +220,7 @@ export default function WhatsAppConnect() {
                 <View key={i} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
                   <View style={{
                     width: 24, height: 24, borderRadius: 12,
-                    backgroundColor: T.primary, alignItems: 'center', justifyContent: 'center', marginTop: 1,
+                    backgroundColor: T.primary, alignItems: 'center', justifyContent: 'center',
                   }}>
                     <Text style={{ color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 12 }}>{i + 1}</Text>
                   </View>
@@ -241,9 +231,12 @@ export default function WhatsAppConnect() {
               ))}
             </View>
 
-            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: T.muted }}>
-              ينتهي الرمز بعد 20 ثانية ويُحدَّث تلقائياً
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ActivityIndicator size="small" color={T.primary} />
+              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: T.muted }}>
+                في انتظار المسح... يتجدد الرمز تلقائياً
+              </Text>
+            </View>
 
             <TouchableOpacity
               onPress={startConnect}
@@ -259,11 +252,14 @@ export default function WhatsAppConnect() {
           </View>
         )}
 
-        {/* Error */}
+        {/* ── Error ── */}
         {status === 'error' && (
           <View style={{ alignItems: 'center', marginTop: 40, gap: 16 }}>
             <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#EF4444', textAlign: 'center' }}>
               حدث خطأ في الاتصال
+            </Text>
+            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: T.muted, textAlign: 'center' }}>
+              تحقق من اتصالك بالإنترنت ثم حاول مجدداً
             </Text>
             <TouchableOpacity
               onPress={startConnect}
@@ -273,6 +269,7 @@ export default function WhatsAppConnect() {
             </TouchableOpacity>
           </View>
         )}
+
       </ScrollView>
     </View>
   );

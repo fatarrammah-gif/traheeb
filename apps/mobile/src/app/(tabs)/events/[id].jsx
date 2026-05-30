@@ -72,6 +72,12 @@ export default function EventDetail() {
 
   useEffect(() => {
     fetchEventDetail(id).catch(() => {});
+    // Poll every 10 seconds so guest statuses update automatically
+    // when guests reply نعم / لا on WhatsApp
+    const interval = setInterval(() => {
+      fetchEventDetail(id).catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
   }, [id]);
 
   const event = events.find((e) => e.id === id);

@@ -24,8 +24,9 @@ const C = {
 
 const STATUS_CONFIG = {
   confirmed: { label: "مؤكد", dot: "#16A34A" },
-  invited: { label: "مدعو", dot: "#2563EB" },
-  pending: { label: "معلق", dot: "#D97706" },
+  invited:   { label: "مدعو", dot: "#2563EB" },
+  declined:  { label: "معتذر", dot: "#EF4444" },
+  pending:   { label: "معلق", dot: "#D97706" },
 };
 
 export default function BarcodeScreen() {

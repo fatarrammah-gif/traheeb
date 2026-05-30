@@ -1,8 +1,14 @@
 FROM node:22-slim
 
-# Build tools required by native modules (argon2, canvas, etc.)
+# Build tools for native modules (argon2, sharp, etc.)
+# Chrome system libraries required by Puppeteer (whatsapp-web.js).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
+    libglib2.0-0 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+    libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
+    libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 \
+    libx11-6 libxcb1 libxext6 libxfixes3 libxi6 libxrender1 \
+    fonts-liberation wget ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -28,5 +34,7 @@ RUN ls build/server/assets/*.js >/dev/null 2>&1 || \
      "SSR build may have failed — check npm-install and vite-build output above." \
      && exit 1)
 
+# WhatsApp sessions are persisted in Neon DB via RemoteAuth + NeonAuthStore.
+# No Railway Volume needed — sessions survive redeploys automatically.
 EXPOSE 3000
-CMD ["node", "build/server/index.js"]
+CMD ["node", "--no-warnings", "build/server/index.js"]

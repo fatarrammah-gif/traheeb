@@ -131,13 +131,24 @@ export default function InviteContacts() {
         companions,
       }));
 
-      await inviteGuests(eventId, guests);
+      const result = await inviteGuests(eventId, guests);
 
-      Alert.alert(
-        "تم إرسال الدعوات!",
-        `سيتم إرسال ${selectedList.length} دعوة عبر واتساب.`,
-        [{ text: "حسناً", onPress: () => router.back() }],
-      );
+      if (result?.whatsappDisconnected) {
+        Alert.alert(
+          "تم حفظ المدعوين ✓",
+          "واتساب غير متصل حالياً — اربط حسابك من الإعدادات ثم ستصل الدعوات تلقائياً.",
+          [
+            { text: "ربط واتساب", onPress: () => router.replace("/(tabs)/whatsapp-connect") },
+            { text: "لاحقاً", onPress: () => router.back() },
+          ],
+        );
+      } else {
+        Alert.alert(
+          "تم إرسال الدعوات!",
+          `سيتم إرسال ${selectedList.length} دعوة عبر واتساب.`,
+          [{ text: "حسناً", onPress: () => router.back() }],
+        );
+      }
     } catch (err) {
       Alert.alert("خطأ", err.message || "تعذر إرسال الدعوات. حاول مجدداً.");
     } finally {

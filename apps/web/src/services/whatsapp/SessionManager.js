@@ -1,120 +1,175 @@
 /**
- * WhatsApp session manager using whatsapp-web.js (Puppeteer/Chrome).
- * Each organizer gets one Client instance keyed by userId.
+ * WhatsApp session manager using whatsapp-web.js + Puppeteer.
  *
- * Sessions are persisted to .wwebjs_auth/ (LocalAuth).
- * On Railway: mount a volume at /app/apps/web/.wwebjs_auth to persist across deploys.
+ * Linking flow (QR code):
+ *   1. POST /api/whatsapp/connect  →  returns { qrDataUrl }
+ *   2. User scans QR in WhatsApp → Linked Devices → Link a Device
+ *   3. GET /api/whatsapp/status polls until { connected: true }
+ *
+ * Sessions persist via LocalAuth (.wwebjs_auth/<userId>/).
+ * On Railway: mount a Volume at /app/apps/web/.wwebjs_auth to survive redeploys.
  */
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia } = pkg;
-import QRCode from 'qrcode';
-import sql from '../../app/api/utils/sql.js';
 
-// Map<userId, { client, status, qrDataUrl }>
+import QRCode from 'qrcode';
+import crypto from 'crypto';
+import sql from '../../app/api/utils/sql.js';
+import { handleIncomingMessage } from './messageHandler.js';
+
+// Map<userId, SessionEntry>
+// SessionEntry: { client, status, qrDataUrl }
 // status: 'initializing' | 'qr_ready' | 'connected' | 'disconnected'
 const sessions = new Map();
 
-const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+// Prevent concurrent startSession calls for the same userId
+const pendingStarts = new Map(); // userId → Promise<SessionEntry>
 
-function buildClient(userId) {
-  return new Client({
-    authStrategy: new LocalAuth({
-      clientId: userId,
-      dataPath: '.wwebjs_auth',
-    }),
+// Puppeteer launch args tuned for Railway's Docker environment.
+// --no-zygote removed: it prevents Chrome from spawning proper renderer processes,
+// causing frame detachments when pages reload (e.g. WhatsApp Web version update).
+const PUPPETEER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',          // use /tmp instead of /dev/shm (limited in Docker)
+  '--disable-gpu',
+  '--no-first-run',
+  '--disable-extensions',
+  '--disable-background-timer-throttling',
+  '--disable-backgrounding-occluded-windows',
+  '--disable-renderer-backgrounding',
+  '--disable-features=TranslateUI',
+  '--metrics-recording-only',
+];
+
+// ── Build / start a session ──────────────────────────────────────────────────
+
+async function startSession(userId, phone) {
+  const client = new Client({
+    authStrategy: new LocalAuth({ clientId: userId }),
     puppeteer: {
       headless: true,
-      executablePath: CHROME_PATH,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
+      args: PUPPETEER_ARGS,
+      protocolTimeout: 60000,
     },
   });
-}
 
-/**
- * Start a session for userId (or return existing one).
- * Returns the session object { status, qrDataUrl }.
- */
-export async function getOrStartSession(userId) {
-  if (sessions.has(userId)) {
-    return sessions.get(userId);
-  }
-
-  const session = { client: null, status: 'initializing', qrDataUrl: null };
-  sessions.set(userId, session);
-
-  const client = buildClient(userId);
-  session.client = client;
+  const entry = { client, status: 'initializing', qrDataUrl: null };
+  sessions.set(userId, entry);
 
   client.on('qr', async (qr) => {
-    session.qrDataUrl = await QRCode.toDataURL(qr);
-    session.status = 'qr_ready';
+    entry.qrDataUrl = await QRCode.toDataURL(qr, { width: 512, margin: 2 });
+    entry.status = 'qr_ready';
     console.log(`[WhatsApp] QR ready for userId=${userId}`);
   });
 
   client.on('ready', async () => {
-    session.status = 'connected';
-    session.qrDataUrl = null;
-    console.log(`[WhatsApp] Connected for userId=${userId}`);
+    console.log(`[WhatsApp] Connected userId=${userId}`);
+    entry.status = 'connected';
+    entry.qrDataUrl = null;
     await sql`
       INSERT INTO traheeb_whatsapp_sessions (user_id, creds, keys, connected, updated_at)
       VALUES (${userId}, '{}', '{}', true, now())
       ON CONFLICT (user_id) DO UPDATE SET connected = true, updated_at = now()
     `.catch(() => {});
+
+    // Monitor Puppeteer page for crashes / frame detachments
+    try {
+      client.pupPage?.on('error', (err) => {
+        console.error(`[WhatsApp] Puppeteer page error userId=${userId}: ${err.message} — restarting in 5s`);
+        markSessionDead(userId);
+        setTimeout(() => startSession(userId, phone), 5000);
+      });
+      client.pupPage?.on('close', () => {
+        console.log(`[WhatsApp] Puppeteer page closed userId=${userId} — restarting in 5s`);
+        markSessionDead(userId);
+        setTimeout(() => startSession(userId, phone), 5000);
+      });
+    } catch {}
+  });
+
+  // 'message' = incoming from others; 'message_create' = all messages (belt + suspenders)
+  // whatsapp-web.js v1.34 sometimes only fires message_create for received messages.
+  const onMsg = (msg) => {
+    if (msg.fromMe) return; // skip messages we sent
+    handleIncomingMessage(msg, userId, client).catch((err) =>
+      console.error(`[WhatsApp] message handler error userId=${userId}:`, err.message)
+    );
+  };
+  client.on('message', onMsg);
+  client.on('message_create', onMsg);
+
+  client.on('auth_failure', (msg) => {
+    console.error(`[WhatsApp] Auth failure userId=${userId}: ${msg}`);
+    entry.status = 'disconnected';
+    sessions.delete(userId);
   });
 
   client.on('disconnected', async (reason) => {
-    console.log(`[WhatsApp] Disconnected for userId=${userId}: ${reason}`);
-    session.status = 'disconnected';
+    console.log(`[WhatsApp] Disconnected userId=${userId} reason=${reason}`);
+    entry.status = 'disconnected';
     sessions.delete(userId);
     await sql`
       UPDATE traheeb_whatsapp_sessions SET connected = false WHERE user_id = ${userId}
     `.catch(() => {});
+
+    // Auto-reconnect unless the user explicitly logged out
+    if (reason !== 'LOGOUT' && phone) {
+      console.log(`[WhatsApp] Reconnecting userId=${userId} in 10s...`);
+      setTimeout(() => startSession(userId, phone), 10000);
+    }
   });
 
-  client.on('auth_failure', (msg) => {
-    console.error(`[WhatsApp] Auth failure for userId=${userId}: ${msg}`);
-    session.status = 'disconnected';
-    sessions.delete(userId);
-  });
-
-  // Initialize in background — do not await
+  console.log(`[WhatsApp] Initializing session for userId=${userId}...`);
   client.initialize().catch((err) => {
-    console.error(`[WhatsApp] Init error for userId=${userId}:`, err.message);
+    console.error(`[WhatsApp] Init error for userId=${userId}: ${err.message}`);
+    entry.status = 'disconnected';
     sessions.delete(userId);
   });
 
-  return session;
+  return entry;
 }
 
-/** Get an existing session without starting a new one. */
+// ── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Start or return an existing session.
+ * Concurrent calls for the same userId wait on the same promise.
+ */
+export async function getOrStartSession(userId, phone) {
+  if (sessions.has(userId)) {
+    return sessions.get(userId);
+  }
+  if (pendingStarts.has(userId)) {
+    return pendingStarts.get(userId);
+  }
+  const p = startSession(userId, phone).finally(() => pendingStarts.delete(userId));
+  pendingStarts.set(userId, p);
+  return p;
+}
+
 export function getSession(userId) {
   return sessions.get(userId) ?? null;
 }
 
-/** True if the session is fully connected. */
 export function isConnected(userId) {
   return sessions.get(userId)?.status === 'connected';
 }
 
 /** Get the connected client or throw. */
 export function getClient(userId) {
-  const session = sessions.get(userId);
-  if (!session || session.status !== 'connected') {
+  const entry = sessions.get(userId);
+  if (!entry || entry.status !== 'connected') {
     throw new Error(`No connected WhatsApp session for userId=${userId}`);
   }
-  return session.client;
+  return entry.client;
 }
 
-/** Disconnect and remove session. */
 export async function disconnectSession(userId) {
-  const session = sessions.get(userId);
-  if (session?.client) {
-    try { await session.client.destroy(); } catch {}
+  const entry = sessions.get(userId);
+  if (entry?.client) {
+    try { await entry.client.logout(); } catch {}
+    try { await entry.client.destroy(); } catch {}
   }
   sessions.delete(userId);
   await sql`
@@ -123,22 +178,91 @@ export async function disconnectSession(userId) {
 }
 
 /**
- * Called at server startup.
- * whatsapp-web.js with LocalAuth auto-restores sessions from disk —
- * we just need to re-initialize clients for previously connected users.
+ * Mark a session as dead without attempting logout (used when frame detaches).
+ * Cleans up in-memory state so isConnected() returns false immediately.
+ */
+export function markSessionDead(userId) {
+  const entry = sessions.get(userId);
+  if (entry) entry.status = 'disconnected';
+  sessions.delete(userId);
+  sql`UPDATE traheeb_whatsapp_sessions SET connected = false WHERE user_id = ${userId}`.catch(() => {});
+}
+
+/**
+ * Called at server startup — re-initialise previously connected sessions.
+ * whatsapp-web.js restores credentials from LocalAuth automatically.
  */
 export async function initAllSessions() {
   try {
     const rows = await sql`
-      SELECT user_id FROM traheeb_whatsapp_sessions WHERE connected = true
+      SELECT ws.user_id, u.phone
+      FROM traheeb_whatsapp_sessions ws
+      JOIN traheeb_users u ON u.id = ws.user_id
+      WHERE ws.connected = true
     `;
-    for (const row of rows) {
-      await getOrStartSession(row.user_id);
-    }
     console.log(`[WhatsApp] Restoring ${rows.length} session(s)...`);
+    for (const row of rows) {
+      startSession(row.user_id, row.phone).catch((err) =>
+        console.error(`[WhatsApp] Init error for userId=${row.user_id}: ${err.message}`)
+      );
+    }
   } catch (err) {
     console.error('[WhatsApp] initAllSessions error:', err.message);
   }
 }
 
-export { MessageMedia };
+// ── QR generation for confirmed guests (button-tap flow) ────────────────────
+
+export async function generateAndSendQRs(userId, guest) {
+  const { generateStyledQR } = await import('../qr/generator.js');
+  const { qrConfirmationMessage } = await import('./templates.js');
+
+  const client = getClient(userId);
+  const jid = toWhatsAppJid(guest.phone);
+
+  const labels = [
+    'main',
+    ...Array.from({ length: guest.companions }, (_, i) => `companion-${i + 1}`),
+  ];
+
+  let logoBuffer = null;
+  if (guest.event_logo_url) {
+    try {
+      const r = await fetch(guest.event_logo_url);
+      if (r.ok) logoBuffer = Buffer.from(await r.arrayBuffer());
+    } catch {}
+  }
+
+  for (const label of labels) {
+    const token = crypto.randomBytes(16).toString('hex');
+    await sql`
+      INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
+      VALUES (${guest.id}, ${guest.event_id}, ${token}, ${label})
+    `.catch(() => {});
+
+    const pngBuffer = await generateStyledQR(token, logoBuffer);
+    const caption = qrConfirmationMessage({
+      guestName: guest.name,
+      eventName: guest.event_name,
+      label,
+    });
+
+    const media = new MessageMedia('image/png', pngBuffer.toString('base64'));
+    await client.sendMessage(jid, media, { caption });
+
+    if (labels.length > 1) await new Promise((r) => setTimeout(r, 800));
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Normalise phone → whatsapp-web.js chat ID (E.164 digits + @c.us) */
+export function toWhatsAppJid(phone) {
+  let p = String(phone).replace(/[\s\-().]/g, '');
+  if (p.startsWith('00'))                              p = p.slice(2);
+  else if (p.startsWith('+'))                          p = p.slice(1);
+  else if (p.startsWith('05') && p.length === 10)      p = '966' + p.slice(1);
+  else if (p.startsWith('5')  && p.length === 9)       p = '966' + p;
+  p = p.replace(/[^0-9]/g, '');
+  return `${p}@c.us`;
+}

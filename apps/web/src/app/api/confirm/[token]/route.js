@@ -10,7 +10,7 @@ import { isConnected } from '../../../../services/whatsapp/SessionManager.js';
 import { sendImages } from '../../../../services/whatsapp/sender.js';
 import { qrConfirmationMessage } from '../../../../services/whatsapp/templates.js';
 
-const BASE_URL = process.env.BASE_URL || 'https://traheeb.com';
+const BASE_URL = process.env.BASE_URL || 'https://traheeb-production.up.railway.app';
 
 export async function GET(request, { params }) {
   try {

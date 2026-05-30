@@ -25,10 +25,14 @@ export function eventCreatedMessage(event) {
 }
 
 /** Sent to each invitee when they are invited. */
-export function invitationMessage({ guestName, invitationText, event, companions, confirmUrl, declineUrl }) {
+export function invitationMessage({ guestName, invitationText, event, companions, locationLink, invitationToken, baseUrl }) {
   const companionsLine = companions > 0
     ? `👥 المرافقون: ${companions} ${companions === 1 ? 'شخص' : 'أشخاص'}\n`
     : '';
+
+  const base = (baseUrl || process.env.BASE_URL || 'https://traheeb-production.up.railway.app').replace(/\/$/, '');
+  const confirmUrl = `${base}/api/confirm/${invitationToken}`;
+  const declineUrl = `${base}/api/decline/${invitationToken}`;
 
   return (
     `المكرم ${guestName}\n\n` +
@@ -37,8 +41,11 @@ export function invitationMessage({ guestName, invitationText, event, companions
     `🕐 الوقت: ${event.time}\n` +
     `📍 المكان: ${event.venue}${event.location ? `، ${event.location}` : ''}\n` +
     companionsLine +
-    `\n✅ تأكيد الحضور:\n${confirmUrl}\n\n` +
-    `❌ الاعتذار عن الحضور:\n${declineUrl}`
+    `\n🗺 موقع الفعالية:\n${locationLink}\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n` +
+    `✅ تأكيد الحضور:\n${confirmUrl}\n\n` +
+    `❌ الاعتذار:\n${declineUrl}\n\n` +
+    `أو أرسل *نعم* 👍 للتأكيد، *لا* 👎 للاعتذار`
   );
 }
 
