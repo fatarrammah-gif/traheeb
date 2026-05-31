@@ -17,7 +17,7 @@ const GRAPH_API_VERSION = 'v21.0';
 const PHONE_NUMBER_ID   = process.env.META_PHONE_NUMBER_ID;
 const ACCESS_TOKEN      = process.env.META_ACCESS_TOKEN;
 const TEMPLATE_NAME     = 'attendance_conf';
-const TEMPLATE_LANGUAGE = 'en';
+const TEMPLATE_LANGUAGE = 'en_US';
 
 /**
  * Normalise any phone format to E.164 digits only (no +, no spaces).

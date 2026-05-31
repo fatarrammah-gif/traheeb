@@ -197,7 +197,7 @@ export async function initAllSessions() {
     const rows = await sql`
       SELECT ws.user_id, u.phone
       FROM traheeb_whatsapp_sessions ws
-      JOIN traheeb_users u ON u.id = ws.user_id
+      JOIN traheeb_users u ON u.id::text = ws.user_id::text
       WHERE ws.connected = true
     `;
     console.log(`[WhatsApp] Restoring ${rows.length} session(s)...`);
