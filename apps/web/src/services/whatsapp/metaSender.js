@@ -66,6 +66,9 @@ export async function sendInvitationTemplate({
   const components = [];
 
   // Header — image (if event has an invitation image)
+  // Only send header if template has a header component with IMAGE type
+  // Comment this out temporarily to isolate parameter errors:
+  /*
   if (imageUrl) {
     components.push({
       type: 'header',
@@ -77,6 +80,7 @@ export async function sendInvitationTemplate({
       ],
     });
   }
+  */
 
   // Body — 7 variables in template order
   components.push({
@@ -105,6 +109,8 @@ export async function sendInvitationTemplate({
 
   const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
 
+  console.log(`[Meta] sending to=${to} body=${JSON.stringify(body)}`);
+
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -117,6 +123,7 @@ export async function sendInvitationTemplate({
   const json = await res.json();
 
   if (!res.ok) {
+    console.error(`[Meta] raw error response:`, JSON.stringify(json));
     const errMsg = json?.error?.message ?? JSON.stringify(json);
     throw new Error(`Meta API error (${res.status}): ${errMsg}`);
   }
