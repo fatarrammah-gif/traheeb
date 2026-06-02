@@ -25,10 +25,19 @@ export async function uploadToUploadcare(dataUri) {
   params.append('key', IMGBB_KEY);
   params.append('image', b64);
 
-  const res = await fetch('https://api.imgbb.com/1/upload', {
-    method: 'POST',
-    body: params,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+  let res;
+  try {
+    res = await fetch('https://api.imgbb.com/1/upload', {
+      method: 'POST',
+      body: params,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await res.text();
 
