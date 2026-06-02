@@ -42,8 +42,11 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    console.log('[events POST] start');
     const { user } = await authenticate(request);
+    console.log('[events POST] auth ok userId=', user.id);
     const body = await request.json();
+    console.log('[events POST] body parsed');
 
     const {
       name, date, time, category = 'أخرى', capacity = 100,
@@ -59,6 +62,7 @@ export async function POST(request) {
     }
 
     // Insert event immediately with no media URLs — respond fast to avoid mobile timeout
+    console.log('[events POST] inserting...');
     const [event] = await sql`
       INSERT INTO traheeb_events (
         user_id, name, date, time, category, capacity,
