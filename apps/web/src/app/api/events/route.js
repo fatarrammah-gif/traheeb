@@ -58,23 +58,7 @@ export async function POST(request) {
       return Response.json({ error: 'الاسم والتاريخ والوقت والمكان مطلوبة' }, { status: 400 });
     }
 
-    // Upload base64 data URIs to Uploadcare → get CDN URLs
-    // If Uploadcare is not configured, falls back to null (no media)
-    let event_logo_url = null;
-    let invitation_media_url = null;
-    let qr_background_url = null;
-    try {
-      [event_logo_url, invitation_media_url, qr_background_url] = await Promise.all([
-        uploadToUploadcare(rawLogoUrl),
-        uploadToUploadcare(rawMediaUrl),
-        uploadToUploadcare(rawQrBgUrl),
-      ]);
-      console.log('[events POST] uploads:', { event_logo_url, invitation_media_url, qr_background_url });
-    } catch (uploadErr) {
-      console.error('[events POST] media upload failed:', uploadErr.message);
-      // Continue without media rather than failing the whole request
-    }
-
+    // Insert event immediately with no media URLs — respond fast to avoid mobile timeout
     const [event] = await sql`
       INSERT INTO traheeb_events (
         user_id, name, date, time, category, capacity,
@@ -85,10 +69,17 @@ export async function POST(request) {
         ${user.id}, ${name}, ${date}, ${time}, ${category}, ${capacity},
         ${venue}, ${location ?? null}, ${map_lat ?? null}, ${map_lng ?? null},
         ${invitation_text ?? null}, ${reminder},
-        ${event_logo_url}, ${invitation_media_url}, ${qr_background_url}
+        ${null}, ${null}, ${null}
       )
       RETURNING *
     `;
+
+    // Upload media in the background — update DB record when done
+    if (rawLogoUrl || rawMediaUrl || rawQrBgUrl) {
+      uploadMediaAndUpdate(event.id, rawLogoUrl, rawMediaUrl, rawQrBgUrl).catch(err =>
+        console.error('[events POST] background upload error:', err.message)
+      );
+    }
 
     // Send WhatsApp confirmation to the organizer (non-blocking)
     if (isConnected(user.id)) {
@@ -97,19 +88,15 @@ export async function POST(request) {
       );
     }
 
-    // Strip base64 media before sending to mobile — only the server needs it
-    const {
-      event_logo_url: _logo,
-      invitation_media_url: _media,
-      qr_background_url: _qrbg,
-      ...eventSafe
-    } = event;
     return Response.json({
       event: {
-        ...eventSafe,
-        has_logo:  _logo  != null,
-        has_media: _media != null,
-        has_qr_bg: _qrbg  != null,
+        ...event,
+        event_logo_url: undefined,
+        invitation_media_url: undefined,
+        qr_background_url: undefined,
+        has_logo:  !!rawLogoUrl,
+        has_media: !!rawMediaUrl,
+        has_qr_bg: !!rawQrBgUrl,
       },
     }, { status: 201 });
   } catch (err) {
@@ -117,4 +104,21 @@ export async function POST(request) {
     console.error('[POST /api/events]', err);
     return Response.json({ error: 'حدث خطأ، حاول مجدداً' }, { status: 500 });
   }
+}
+
+async function uploadMediaAndUpdate(eventId, rawLogoUrl, rawMediaUrl, rawQrBgUrl) {
+  const [event_logo_url, invitation_media_url, qr_background_url] = await Promise.all([
+    uploadToUploadcare(rawLogoUrl).catch(() => null),
+    uploadToUploadcare(rawMediaUrl).catch(() => null),
+    uploadToUploadcare(rawQrBgUrl).catch(() => null),
+  ]);
+  console.log('[events POST] background uploads done:', { event_logo_url, invitation_media_url, qr_background_url });
+  await sql`
+    UPDATE traheeb_events
+    SET
+      event_logo_url       = ${event_logo_url},
+      invitation_media_url = ${invitation_media_url},
+      qr_background_url    = ${qr_background_url}
+    WHERE id = ${eventId}
+  `;
 }
