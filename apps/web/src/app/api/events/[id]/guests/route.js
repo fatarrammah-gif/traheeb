@@ -128,6 +128,7 @@ async function sendInvitations(event, guests) {
         companionsLabel: companionsLabel || '0',
         confirmUrl,
         imageUrl: event.invitation_media_url || null,
+        invitationToken: guest.invitation_token,
       });
       console.log(`[invite] template sent to ${guest.phone}`);
     } catch (err) {

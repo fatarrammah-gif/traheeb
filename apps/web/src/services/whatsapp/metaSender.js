@@ -52,6 +52,7 @@ export async function sendInvitationTemplate({
   companionsLabel,
   confirmUrl,
   imageUrl,
+  invitationToken,
 }) {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
     throw new Error('META_PHONE_NUMBER_ID or META_ACCESS_TOKEN env var is missing');
@@ -74,7 +75,7 @@ export async function sendInvitationTemplate({
     });
   }
 
-  // Body — named parameters (parameter_name is required by Meta for this template)
+  // Body — named parameters
   components.push({
     type: 'body',
     parameters: [
@@ -87,6 +88,23 @@ export async function sendInvitationTemplate({
       { type: 'text', parameter_name: 'link',      text: confirmUrl     || '-' },
     ],
   });
+
+  // CTA URL buttons — dynamic suffix is the invitation token
+  // Only added if invitationToken is provided (template must have buttons configured in Meta)
+  if (invitationToken) {
+    components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: '0', // تأكيد الحضور button
+      parameters: [{ type: 'text', text: invitationToken }],
+    });
+    components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: '1', // الاعتذار button
+      parameters: [{ type: 'text', text: invitationToken }],
+    });
+  }
 
   const body = {
     messaging_product: 'whatsapp',
