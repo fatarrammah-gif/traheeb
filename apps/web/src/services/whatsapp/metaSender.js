@@ -16,7 +16,7 @@
 const GRAPH_API_VERSION = 'v21.0';
 const PHONE_NUMBER_ID   = process.env.META_PHONE_NUMBER_ID;
 const ACCESS_TOKEN      = process.env.META_ACCESS_TOKEN;
-const TEMPLATE_NAME     = 'attendance_conf';
+const TEMPLATE_NAME     = 'trail';
 const TEMPLATE_LANGUAGE = 'en_US';
 
 /**
@@ -82,19 +82,7 @@ export async function sendInvitationTemplate({
   }
   */
 
-  // Body — 7 variables in template order
-  components.push({
-    type: 'body',
-    parameters: [
-      { type: 'text', text: guestName       || '' },
-      { type: 'text', text: invitationText  || '' },
-      { type: 'text', text: date            || '' },
-      { type: 'text', text: time            || '' },
-      { type: 'text', text: venueName       || '' },
-      { type: 'text', text: companionsLabel || '' },
-      { type: 'text', text: confirmUrl      || '' },
-    ],
-  });
+  // No body parameters — trail template has no variables
 
   const body = {
     messaging_product: 'whatsapp',
