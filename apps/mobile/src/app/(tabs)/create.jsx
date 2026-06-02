@@ -367,30 +367,37 @@ export default function CreateEvent() {
    * Convert a picked asset to a base64 data URI for storage in the DB.
    * Images are compressed first; videos use picker base64 directly.
    */
+  // Compress image, upload to ImgBB, return public URL
   const uploadAsset = async (asset) => {
     if (!asset) return null;
     const isVideo = asset.mimeType?.startsWith('video') || asset.type === 'video';
-    console.log('[uploadAsset] isVideo:', isVideo);
+    if (isVideo) return null;
     try {
-      if (isVideo) return null;
       const compressed = await manipulateAsync(
         asset.uri,
         [{ resize: { width: 800 } }],
         { compress: 0.7, format: SaveFormat.JPEG, base64: true },
       );
-      console.log('[uploadAsset] compressed size:', compressed.base64?.length ?? 0, 'bytes');
-      if (!compressed.base64) {
-        console.error('[uploadAsset] no base64 returned from manipulateAsync');
+      if (!compressed.base64) return null;
+
+      const params = new FormData();
+      params.append('key', process.env.EXPO_PUBLIC_IMGBB_API_KEY);
+      params.append('image', compressed.base64);
+
+      console.log('[uploadAsset] uploading to ImgBB...');
+      const res = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body: params,
+      });
+      const json = await res.json();
+      if (!json.success) {
+        console.error('[uploadAsset] ImgBB failed:', JSON.stringify(json));
         return null;
       }
-      const dataUri = `data:image/jpeg;base64,${compressed.base64}`;
-      if (dataUri.length > 3 * 1024 * 1024) {
-        console.warn('[uploadAsset] too large:', dataUri.length, 'bytes — skipping');
-        return null;
-      }
-      return dataUri;
+      console.log('[uploadAsset] uploaded:', json.data.url);
+      return json.data.url;
     } catch (err) {
-      console.error('[uploadAsset] FULL error:', err);
+      console.error('[uploadAsset] error:', err.message);
       return null;
     }
   };
