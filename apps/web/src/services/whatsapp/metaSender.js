@@ -89,22 +89,19 @@ export async function sendInvitationTemplate({
     ],
   });
 
-  // CTA URL buttons — dynamic suffix is the invitation token
-  // Only added if invitationToken is provided (template must have buttons configured in Meta)
-  if (invitationToken) {
-    components.push({
-      type: 'button',
-      sub_type: 'url',
-      index: '0', // تأكيد الحضور button
-      parameters: [{ type: 'text', text: invitationToken }],
-    });
-    components.push({
-      type: 'button',
-      sub_type: 'url',
-      index: '1', // الاعتذار button
-      parameters: [{ type: 'text', text: invitationToken }],
-    });
-  }
+  // Quick Reply buttons — payload tells webhook which button was tapped
+  components.push({
+    type: 'button',
+    sub_type: 'quick_reply',
+    index: '0', // تأكيد الحضور
+    parameters: [{ type: 'payload', payload: 'confirm' }],
+  });
+  components.push({
+    type: 'button',
+    sub_type: 'quick_reply',
+    index: '1', // الاعتذار
+    parameters: [{ type: 'payload', payload: 'decline' }],
+  });
 
   const body = {
     messaging_product: 'whatsapp',
