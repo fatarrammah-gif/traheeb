@@ -120,12 +120,12 @@ async function sendInvitations(event, guests) {
     try {
       await sendInvitationTemplate({
         phone: guest.phone,
-        guestName: guest.name,
-        invitationText: event.invitation_text || '',
-        date: event.date || '',
-        time: event.time || '',
-        venueName: [event.venue, event.location].filter(Boolean).join('، '),
-        companionsLabel,
+        guestName: guest.name || '-',
+        invitationText: event.invitation_text || '-',
+        date: event.date || '-',
+        time: event.time || '-',
+        venueName: [event.venue, event.location].filter(Boolean).join('، ') || '-',
+        companionsLabel: companionsLabel || '0',
         confirmUrl,
         imageUrl: event.invitation_media_url || null,
       });
