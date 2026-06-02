@@ -56,17 +56,17 @@ export async function POST(request) {
 }
 
 async function handleMessage(msg) {
-  if (msg.type !== 'interactive') return;
-  if (msg.interactive?.type !== 'button_reply') return;
+  // Quick Reply button taps come as type "button" (not "interactive")
+  if (msg.type !== 'button') return;
 
   const phone   = msg.from;
-  const payload = msg.interactive.button_reply?.id ?? '';
+  const payload = msg.button?.payload ?? msg.button?.text ?? '';
   const last9   = phone.replace(/[^0-9]/g, '').slice(-9);
 
   console.log(`[Webhook] button tap from=${phone} payload="${payload}" last9=${last9}`);
 
-  const isConfirm = payload.startsWith('confirm');
-  const isDecline = payload.startsWith('decline');
+  const isConfirm = payload.toLowerCase().includes('confirm') || payload.includes('تأكيد');
+  const isDecline = payload.toLowerCase().includes('decline') || payload.includes('اعتذار') || payload.includes('معتذر');
 
   if (!isConfirm && !isDecline) {
     console.log(`[Webhook] unknown payload="${payload}" — skipping`);
