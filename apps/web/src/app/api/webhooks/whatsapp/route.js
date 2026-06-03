@@ -5,7 +5,6 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
-import { generateAndSendQRCards } from '../../../../services/qr/qrService.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -100,11 +99,14 @@ async function handleMessage(msg) {
 
   if (isConfirm) {
     console.log(`[Webhook] → kicking off QR generation for guest=${guest.id}`);
-    generateAndSendQRCards({
-      id:         guest.id,
-      phone:      guest.phone,
-      event_id:   guest.event_id,
-      companions: guest.companions ?? 0,
-    }).catch(err => console.error('[Webhook] QR error:', err.message));
+    // Dynamic import keeps sharp/qrcode out of the static server bundle
+    import('../../../../services/qr/qrService.js')
+      .then(({ generateAndSendQRCards }) => generateAndSendQRCards({
+        id:         guest.id,
+        phone:      guest.phone,
+        event_id:   guest.event_id,
+        companions: guest.companions ?? 0,
+      }))
+      .catch(err => console.error('[Webhook] QR error:', err.message));
   }
 }

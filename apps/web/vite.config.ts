@@ -90,6 +90,12 @@ export default defineConfig({
     ],
     dedupe: ['react', 'react-dom'],
   },
+  ssr: {
+    // sharp is a native Node.js module — Vite cannot bundle it,
+    // so we mark it (and its dependents) as external for the server build.
+    external: ['sharp', 'qrcode'],
+    noExternal: [],
+  },
   build: {
     target: 'esnext',
   },
