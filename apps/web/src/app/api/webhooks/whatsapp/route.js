@@ -5,6 +5,7 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
+import { sendTextMessage } from '../../../../services/whatsapp/metaSender.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -98,15 +99,9 @@ async function handleMessage(msg) {
   console.log(`[Webhook] ✅ guest=${guest.id} "${guest.name}" → ${newStatus}`);
 
   if (isConfirm) {
-    console.log(`[Webhook] → kicking off QR generation for guest=${guest.id}`);
-    // Dynamic import keeps sharp/qrcode out of the static server bundle
-    import('../../../../services/qr/qrService.js')
-      .then(({ generateAndSendQRCards }) => generateAndSendQRCards({
-        id:         guest.id,
-        phone:      guest.phone,
-        event_id:   guest.event_id,
-        companions: guest.companions ?? 0,
-      }))
-      .catch(err => console.error('[Webhook] QR error:', err.message));
+    sendTextMessage({
+      phone: guest.phone,
+      text: 'شكراً لك، تم تأكيد حضورك بنجاح 🎉',
+    }).catch(err => console.error('[Webhook] sendText error:', err.message));
   }
 }
