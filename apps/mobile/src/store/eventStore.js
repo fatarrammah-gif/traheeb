@@ -14,13 +14,7 @@ const useEventStore = create((set, get) => ({
     const res = await fetchToWeb("/api/events");
     if (!res.ok) throw new Error("فشل تحميل الفعاليات");
     const { events } = await res.json();
-    // Preserve guests arrays already loaded by fetchEventDetail
-    set((state) => ({
-      events: events.map((e) => {
-        const cached = state.events.find((c) => c.id === e.id);
-        return cached?.guests ? { ...e, guests: cached.guests } : e;
-      }),
-    }));
+    set({ events });
     return events;
   },
 
