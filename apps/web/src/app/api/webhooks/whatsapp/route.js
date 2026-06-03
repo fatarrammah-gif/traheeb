@@ -99,9 +99,12 @@ async function handleMessage(msg) {
   console.log(`[Webhook] ✅ guest=${guest.id} "${guest.name}" → ${newStatus}`);
 
   if (isConfirm) {
+    console.log(`[Webhook] sending confirmation text to phone="${guest.phone}"`);
     sendTextMessage({
       phone: guest.phone,
       text: 'شكراً لك، تم تأكيد حضورك بنجاح 🎉',
-    }).catch(err => console.error('[Webhook] sendText error:', err.message));
+    })
+      .then(() => console.log(`[Webhook] confirmation text sent ✅`))
+      .catch(err => console.error('[Webhook] sendText FAILED:', err.message));
   }
 }
