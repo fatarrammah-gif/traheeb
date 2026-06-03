@@ -100,7 +100,6 @@ async function handleMessage(msg) {
 
   // If confirmed: generate QR cards and send to guest (fire-and-forget)
   if (isConfirm) {
-    console.log(`[QR] triggering for guest=${guest.id} companions=${guest.companions}`);
     generateAndSendQRCards({
       id:         guest.id,
       phone:      guest.phone,
