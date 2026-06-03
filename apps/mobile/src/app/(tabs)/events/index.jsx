@@ -48,6 +48,10 @@ export default function EventsList() {
 
   useEffect(() => {
     fetchEvents().catch((err) => console.error('[events tab fetchEvents]', err?.message));
+    const interval = setInterval(() => {
+      fetchEvents().catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const [search, setSearch] = useState("");
@@ -67,8 +71,8 @@ export default function EventsList() {
   const catColor = (cat) =>
     CATEGORY_COLORS[cat] || { bg: C.primarySoft, text: C.primary };
 
-  const getConfirmedCount = (guests) =>
-    (guests ?? []).filter((g) => g.status === "confirmed").length;
+  const getConfirmedCount = (event) =>
+    event.confirmed_count ?? (event.guests ?? []).filter((g) => g.status === "confirmed").length;
 
   return (
     <KeyboardAvoidingAnimatedView
@@ -204,7 +208,7 @@ export default function EventsList() {
 
         {filtered.map((event) => {
           const cc = catColor(event.category);
-          const confirmed = getConfirmedCount(event.guests);
+          const confirmed = getConfirmedCount(event);
           return (
             <TouchableOpacity
               key={event.id}
