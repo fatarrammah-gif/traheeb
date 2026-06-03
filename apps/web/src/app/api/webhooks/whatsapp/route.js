@@ -5,6 +5,7 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
+import { generateAndSendQRCards } from '../../../../services/qr/qrService.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -27,7 +28,6 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    // Log everything Meta sends so we can see the exact structure
     console.log('[Webhook] received:', JSON.stringify(body));
 
     if (body.object !== 'whatsapp_business_account') {
@@ -40,7 +40,7 @@ export async function POST(request) {
         const messages = change.value?.messages ?? [];
         console.log(`[Webhook] messages count: ${messages.length}`);
         for (const msg of messages) {
-          console.log('[Webhook] msg type:', msg.type, 'from:', msg.from, 'interactive:', JSON.stringify(msg.interactive));
+          console.log('[Webhook] msg type:', msg.type, 'from:', msg.from);
           await handleMessage(msg).catch(err =>
             console.error('[Webhook] handler error:', err.message)
           );
@@ -56,7 +56,6 @@ export async function POST(request) {
 }
 
 async function handleMessage(msg) {
-  // Quick Reply button taps come as type "button" (not "interactive")
   if (msg.type !== 'button') return;
 
   const phone   = msg.from;
@@ -73,13 +72,13 @@ async function handleMessage(msg) {
     return;
   }
 
+  // Pick the most recently invited record for this phone number
   const guests = await sql`
-    SELECT g.id, g.name, g.event_id, e.name AS event_name
+    SELECT g.id, g.name, g.phone, g.event_id, g.companions
     FROM traheeb_guests g
-    JOIN traheeb_events e ON e.id = g.event_id
     WHERE g.status = 'invited'
       AND RIGHT(REGEXP_REPLACE(g.phone, '[^0-9]', '', 'g'), 9) = ${last9}
-    ORDER BY e.date ASC
+    ORDER BY g.invited_at DESC NULLS LAST, g.created_at DESC
     LIMIT 1
   `;
 
@@ -88,7 +87,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  const guest = guests[0];
+  const guest    = guests[0];
   const newStatus = isConfirm ? 'confirmed' : 'declined';
 
   await sql`
@@ -98,4 +97,14 @@ async function handleMessage(msg) {
   `;
 
   console.log(`[Webhook] ✅ guest=${guest.id} "${guest.name}" → ${newStatus}`);
+
+  if (isConfirm) {
+    console.log(`[Webhook] → kicking off QR generation for guest=${guest.id}`);
+    generateAndSendQRCards({
+      id:         guest.id,
+      phone:      guest.phone,
+      event_id:   guest.event_id,
+      companions: guest.companions ?? 0,
+    }).catch(err => console.error('[Webhook] QR error:', err.message));
+  }
 }

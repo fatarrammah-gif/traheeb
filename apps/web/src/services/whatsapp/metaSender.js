@@ -138,3 +138,39 @@ export async function sendInvitationTemplate({
   console.log(`[Meta] sent to ${to} message_id=${json.messages?.[0]?.id}`);
   return json;
 }
+
+/**
+ * Send a plain image message within the 24-hour customer service window.
+ * Valid after the guest taps any button (counts as user-initiated message).
+ */
+export async function sendImageMessage({ phone, imageUrl, caption = '' }) {
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
+    throw new Error('META_PHONE_NUMBER_ID or META_ACCESS_TOKEN env var is missing');
+  }
+
+  const to = normalisePhone(phone);
+  const body = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'image',
+    image: { link: imageUrl, caption },
+  };
+
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+  console.log(`[Meta] sending image to=${to}`);
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    console.error('[Meta] image send error:', JSON.stringify(json));
+    throw new Error(`Meta API error (${res.status}): ${json?.error?.message ?? JSON.stringify(json)}`);
+  }
+
+  console.log(`[Meta] image sent to ${to} message_id=${json.messages?.[0]?.id}`);
+  return json;
+}
