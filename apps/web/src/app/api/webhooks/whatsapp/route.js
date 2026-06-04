@@ -5,7 +5,7 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
-import { generateAndSendQRCards } from '../../../../services/qr/qrService.js';
+import { sendImageMessage } from '../../../../services/whatsapp/metaSender.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -75,7 +75,7 @@ async function handleMessage(msg) {
   // Pick the most recently invited record for this phone number
   const guests = await sql`
     SELECT g.id, g.name, g.phone, g.event_id, g.companions,
-           e.user_id AS organizer_user_id
+           e.invitation_media_url
     FROM traheeb_guests g
     JOIN traheeb_events e ON e.id = g.event_id
     WHERE g.status = 'invited'
@@ -100,14 +100,15 @@ async function handleMessage(msg) {
 
   console.log(`[Webhook] ✅ guest=${guest.id} "${guest.name}" → ${newStatus}`);
 
-  if (isConfirm) {
-    console.log(`[Webhook] generating QR cards for guest=${guest.id} phone="${guest.phone}" companions=${guest.companions}`);
+  if (isConfirm && guest.invitation_media_url) {
+    console.log(`[Webhook] sending invitation image to ${guest.phone}`);
 
-    // Wait 3s so Meta registers the button tap as opening the 24-hour window
-    // before we send session messages.
+    // Wait 3s — Meta registers the button tap as opening the 24-hour window
+    // slightly after delivering the webhook, so sending immediately gets rejected.
     setTimeout(() => {
-      generateAndSendQRCards(guest)
-        .catch(err => console.error('[Webhook] QR generation/send FAILED:', err.message));
+      sendImageMessage({ phone: guest.phone, imageUrl: guest.invitation_media_url })
+        .then(() => console.log(`[Webhook] invitation image sent to ${guest.phone} ✅`))
+        .catch(err => console.error(`[Webhook] image send FAILED: ${err.message}`));
     }, 3000);
   }
 }
