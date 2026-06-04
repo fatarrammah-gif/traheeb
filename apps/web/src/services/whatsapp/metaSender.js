@@ -19,6 +19,16 @@ const ACCESS_TOKEN      = process.env.META_ACCESS_TOKEN;
 const TEMPLATE_NAME     = 'attendance_conf';
 const TEMPLATE_LANGUAGE = 'en_US';
 
+/**
+ * Strip characters Meta rejects in template text parameters:
+ * newlines, tabs, and runs of more than 4 consecutive spaces.
+ */
+function sanitizeParam(text) {
+  return String(text ?? '')
+    .replace(/[\r\n\t]/g, ' ')   // newlines/tabs → single space
+    .replace(/ {5,}/g, '    ');  // 5+ spaces → 4 spaces (Meta's limit)
+}
+
 /** Normalise any phone format to E.164 digits only (no +, no spaces). */
 function normalisePhone(phone) {
   let p = String(phone).replace(/[\s\-().+]/g, '');
@@ -79,13 +89,13 @@ export async function sendInvitationTemplate({
   components.push({
     type: 'body',
     parameters: [
-      { type: 'text', parameter_name: 'name',      text: guestName      || '-' },
-      { type: 'text', parameter_name: 'text_body', text: invitationText || '-' },
-      { type: 'text', parameter_name: 'date',      text: date           || '-' },
-      { type: 'text', parameter_name: 'time',      text: time           || '-' },
-      { type: 'text', parameter_name: 'location',  text: venueName      || '-' },
-      { type: 'text', parameter_name: 'people_no', text: companionsLabel || '0' },
-      { type: 'text', parameter_name: 'link',      text: confirmUrl     || '-' },
+      { type: 'text', parameter_name: 'name',      text: sanitizeParam(guestName      || '-') },
+      { type: 'text', parameter_name: 'text_body', text: sanitizeParam(invitationText || '-') },
+      { type: 'text', parameter_name: 'date',      text: sanitizeParam(date           || '-') },
+      { type: 'text', parameter_name: 'time',      text: sanitizeParam(time           || '-') },
+      { type: 'text', parameter_name: 'location',  text: sanitizeParam(venueName      || '-') },
+      { type: 'text', parameter_name: 'people_no', text: sanitizeParam(companionsLabel || '0') },
+      { type: 'text', parameter_name: 'link',      text: sanitizeParam(confirmUrl     || '-') },
     ],
   });
 
