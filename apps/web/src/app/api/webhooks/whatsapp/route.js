@@ -5,7 +5,6 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
-import { sendImageMessage, sendTextMessage } from '../../../../services/whatsapp/metaSender.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -74,10 +73,8 @@ async function handleMessage(msg) {
 
   // Pick the most recently invited record for this phone number
   const guests = await sql`
-    SELECT g.id, g.name, g.phone, g.event_id, g.companions,
-           e.invitation_media_url
+    SELECT g.id, g.name, g.phone, g.event_id, g.companions
     FROM traheeb_guests g
-    JOIN traheeb_events e ON e.id = g.event_id
     WHERE g.status = 'invited'
       AND RIGHT(REGEXP_REPLACE(g.phone, '[^0-9]', '', 'g'), 9) = ${last9}
     ORDER BY g.invited_at DESC NULLS LAST, g.created_at DESC
@@ -100,21 +97,4 @@ async function handleMessage(msg) {
 
   console.log(`[Webhook] ✅ guest=${guest.id} "${guest.name}" → ${newStatus}`);
 
-  if (isConfirm) {
-    // Wait 3s — Meta registers the button tap as opening the 24-hour window
-    // slightly after delivering the webhook, so sending immediately gets rejected.
-    setTimeout(() => {
-      if (guest.invitation_media_url) {
-        console.log(`[Webhook] sending invitation image to ${guest.phone}`);
-        sendImageMessage({ phone: guest.phone, imageUrl: guest.invitation_media_url })
-          .then(() => console.log(`[Webhook] invitation image sent to ${guest.phone} ✅`))
-          .catch(err => console.error(`[Webhook] image send FAILED: ${err.message}`));
-      } else {
-        console.log(`[Webhook] no invitation_media_url for event=${guest.event_id} — sending text fallback`);
-        sendTextMessage({ phone: guest.phone, text: 'شكراً لك، تم تأكيد حضورك بنجاح 🎉' })
-          .then(() => console.log(`[Webhook] text confirmation sent to ${guest.phone} ✅`))
-          .catch(err => console.error(`[Webhook] text send FAILED: ${err.message}`));
-      }
-    }, 3000);
-  }
 }
