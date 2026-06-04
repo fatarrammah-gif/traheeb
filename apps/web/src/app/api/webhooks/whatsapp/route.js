@@ -5,7 +5,7 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
-import { sendTextMessage } from '../../../../services/whatsapp/metaSender.js';
+import { generateAndSendQRCards } from '../../../../services/qr/qrService.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -74,8 +74,10 @@ async function handleMessage(msg) {
 
   // Pick the most recently invited record for this phone number
   const guests = await sql`
-    SELECT g.id, g.name, g.phone, g.event_id, g.companions
+    SELECT g.id, g.name, g.phone, g.event_id, g.companions,
+           e.user_id AS organizer_user_id
     FROM traheeb_guests g
+    JOIN traheeb_events e ON e.id = g.event_id
     WHERE g.status = 'invited'
       AND RIGHT(REGEXP_REPLACE(g.phone, '[^0-9]', '', 'g'), 9) = ${last9}
     ORDER BY g.invited_at DESC NULLS LAST, g.created_at DESC
@@ -99,12 +101,13 @@ async function handleMessage(msg) {
   console.log(`[Webhook] ✅ guest=${guest.id} "${guest.name}" → ${newStatus}`);
 
   if (isConfirm) {
-    console.log(`[Webhook] sending confirmation text to phone="${guest.phone}"`);
-    sendTextMessage({
-      phone: guest.phone,
-      text: 'شكراً لك، تم تأكيد حضورك بنجاح 🎉',
-    })
-      .then(() => console.log(`[Webhook] confirmation text sent ✅`))
-      .catch(err => console.error('[Webhook] sendText FAILED:', err.message));
+    console.log(`[Webhook] generating QR cards for guest=${guest.id} phone="${guest.phone}" companions=${guest.companions}`);
+
+    // Wait 3s so Meta registers the button tap as opening the 24-hour window
+    // before we send session messages.
+    setTimeout(() => {
+      generateAndSendQRCards(guest)
+        .catch(err => console.error('[Webhook] QR generation/send FAILED:', err.message));
+    }, 3000);
   }
 }
