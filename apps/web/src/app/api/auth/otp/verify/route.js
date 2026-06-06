@@ -2,11 +2,18 @@
  * POST /api/auth/otp/verify
  * Body: { phone, code, name? }
  *
- * Validates the OTP, upserts traheeb_users, returns a signed JWT.
+ * Validates the OTP via Twilio Verify, upserts traheeb_users, returns a signed JWT.
  * JWT sub = traheeb_users.id
  */
 import { encode } from '@auth/core/jwt';
+import twilio from 'twilio';
 import sql from '../../../utils/sql.js';
+
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN,
+);
+const SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID;
 
 const SALT = 'authjs.session-token';
 const JWT_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
@@ -31,22 +38,14 @@ export async function POST(request) {
       return Response.json({ error: 'بيانات غير مكتملة' }, { status: 400 });
     }
 
-    // Validate OTP
-    const otpRows = await sql`
-      SELECT id FROM traheeb_otp_codes
-      WHERE phone = ${phone}
-        AND code  = ${code}
-        AND used  = false
-        AND expires_at > now()
-      LIMIT 1
-    `;
+    // Validate OTP via Twilio Verify
+    const check = await client.verify.v2
+      .services(SERVICE_SID)
+      .verificationChecks.create({ to: phone, code });
 
-    if (!otpRows.length) {
+    if (check.status !== 'approved') {
       return Response.json({ error: 'رمز التحقق غير صحيح أو منتهي الصلاحية' }, { status: 400 });
     }
-
-    // Mark OTP as used
-    await sql`UPDATE traheeb_otp_codes SET used = true WHERE id = ${otpRows[0].id}`;
 
     // Upsert traheeb_users directly (no auth_users dependency)
     const userRows = await sql`

@@ -2,17 +2,16 @@
  * POST /api/auth/otp/send
  * Body: { phone: "+966XXXXXXXXX" }
  *
- * Generates a 6-digit OTP, stores it in traheeb_otp_codes with 5-min expiry,
- * and sends it via Twilio WhatsApp.
+ * Sends a 6-digit OTP via Twilio Verify (SMS).
+ * Twilio handles code generation, storage, expiry, and delivery.
  */
-import sql from '../../../utils/sql.js';
 import twilio from 'twilio';
 
-const twilioClient = twilio(
+const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN,
 );
-const FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
+const SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID;
 
 /** Normalize to E.164: strip spaces/dashes, add +966 for Saudi local numbers */
 function normalizePhone(raw) {
@@ -29,55 +28,18 @@ export async function POST(request) {
     const body = await request.json();
     const phone = normalizePhone(body.phone);
 
-    if (!phone || !/^\+?[0-9]{8,15}$/.test(phone.replace(/\s/g, ''))) {
+    if (!phone || !/^\+[0-9]{8,15}$/.test(phone)) {
       return Response.json({ error: 'رقم الجوال غير صحيح' }, { status: 400 });
     }
 
-    // Generate OTP
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    // Invalidate previous unused OTPs for this phone
-    await sql`
-      UPDATE traheeb_otp_codes
-      SET used = true
-      WHERE phone = ${phone} AND used = false
-    `;
-
-    // Insert new OTP
-    await sql`
-      INSERT INTO traheeb_otp_codes (phone, code, expires_at)
-      VALUES (${phone}, ${code}, ${expiresAt.toISOString()})
-    `;
-
-    // Look up user's name for personalised greeting
-    const userRows = await sql`
-      SELECT name FROM traheeb_users WHERE phone = ${phone} LIMIT 1
-    `;
-    const userName = userRows.length ? userRows[0].name : null;
-    const greeting = userName ? `أهلاً وسهلاً ${userName}` : 'أهلاً وسهلاً';
-
-    const message = `${greeting} 👋\n\nرمز التحقق الخاص بك في تراحيب: *${code}*\n\nصالح لمدة 5 دقائق ⏱️`;
-
-    // Send via Twilio SMS (works with any number, no WhatsApp session needed)
-    if (process.env.TWILIO_ACCOUNT_SID) {
-      try {
-        await twilioClient.messages.create({
-          from: process.env.TWILIO_PHONE_NUMBER || FROM,
-          to: phone,
-          body: message.replace(/\*/g, ''), // SMS doesn't support bold
-        });
-      } catch (twilioErr) {
-        console.error('[Twilio SMS]', twilioErr.message);
-        console.log(`[OTP fallback] ${phone} → ${code}`);
-      }
-    } else {
-      console.log(`[OTP] ${phone} → ${code} (TWILIO_ACCOUNT_SID not set)`);
-    }
+    await client.verify.v2.services(SERVICE_SID).verifications.create({
+      to: phone,
+      channel: 'sms',
+    });
 
     return Response.json({ success: true, expiresIn: 300 });
   } catch (err) {
-    console.error('[OTP send]', err);
+    console.error('[OTP send]', err.message);
     return Response.json({ error: 'حدث خطأ، حاول مجدداً' }, { status: 500 });
   }
 }
