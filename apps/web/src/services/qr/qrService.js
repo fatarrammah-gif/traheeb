@@ -73,15 +73,14 @@ export async function generateAndSendQRCards(guest) {
         // Save URL to DB
         await sql`UPDATE traheeb_qr_tokens SET qr_url = ${imageUrl} WHERE id = ${qt.id}`;
 
-        // Send image via Meta
-        const caption = label === 'main'
-          ? 'بطاقة الضيف الرئيسي 🎫'
-          : `بطاقة المرافق ${label.replace('companion-', '')} 🎫`;
+        // Wait for ImgBB CDN to propagate before Meta fetches it
+        await waitForUrl(imageUrl);
 
+        // Send image via Meta
         await sendQRTemplate({ phone: guest.phone, imageUrl });
         console.log(`[QR] sent label=${label} to ${guest.phone}`);
 
-        await sleep(700); // stay within Meta rate limits
+        await sleep(1500); // stay within Meta rate limits
       } catch (err) {
         console.error(`[QR] FAILED label=${label}:`, err.message);
       }
@@ -119,3 +118,20 @@ async function uploadToImgBB(buffer) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Poll URL until it returns 200 (max 10 attempts, 1s apart). */
+async function waitForUrl(url, maxAttempts = 10) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5_000) });
+      if (res.ok) {
+        console.log(`[QR] url ready after ${i + 1} attempt(s): ${url}`);
+        return;
+      }
+    } catch {
+      // ignore, retry
+    }
+    await sleep(1000);
+  }
+  console.warn(`[QR] url not confirmed ready after ${maxAttempts} attempts: ${url}`);
+}
