@@ -165,13 +165,19 @@ export default function AuthScreen() {
   const handleResendOtp = async () => {
     setLoading(true);
     try {
-      await fetchToWeb("/api/auth/otp/send", {
+      const res = await fetchToWeb("/api/auth/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: fullPhone }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert("خطأ", data.error || "تعذر إعادة إرسال رمز التحقق");
+      } else {
+        Alert.alert("تم الإرسال", "تم إرسال رمز تحقق جديد إلى رقمك.");
+      }
     } catch {
-      // silent
+      Alert.alert("خطأ", "تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.");
     } finally {
       setLoading(false);
     }
