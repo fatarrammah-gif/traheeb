@@ -182,6 +182,51 @@ export async function sendTextMessage({ phone, text }) {
   return json;
 }
 
+/**
+ * Send the qr_code_tm_4 template to a guest.
+ * Template has an image header and fixed Arabic body text — no variables.
+ */
+export async function sendQRTemplate({ phone, imageUrl }) {
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
+    throw new Error('META_PHONE_NUMBER_ID or META_ACCESS_TOKEN env var is missing');
+  }
+
+  const to = normalisePhone(phone);
+  const body = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: 'qr_code_tm_4',
+      language: { code: 'ar' },
+      components: [
+        {
+          type: 'header',
+          parameters: [
+            { type: 'image', image: { link: imageUrl } },
+          ],
+        },
+      ],
+    },
+  };
+
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    console.error('[Meta] qr template error:', JSON.stringify(json));
+    throw new Error(`Meta API error (${res.status}): ${json?.error?.message ?? JSON.stringify(json)}`);
+  }
+
+  console.log(`[Meta] qr_code_tm_4 sent to ${to} message_id=${json.messages?.[0]?.id}`);
+  return json;
+}
+
 export async function sendImageMessage({ phone, imageUrl, caption = '' }) {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
     throw new Error('META_PHONE_NUMBER_ID or META_ACCESS_TOKEN env var is missing');

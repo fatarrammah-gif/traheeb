@@ -5,6 +5,7 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
+import { generateAndSendQRCards } from '../../../../services/qr/qrService.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -96,5 +97,11 @@ async function handleMessage(msg) {
   `;
 
   console.log(`[Webhook] ✅ guest=${guest.id} "${guest.name}" → ${newStatus}`);
+
+  if (isConfirm) {
+    generateAndSendQRCards(guest).catch(err =>
+      console.error('[Webhook] QR send error:', err.message)
+    );
+  }
 
 }

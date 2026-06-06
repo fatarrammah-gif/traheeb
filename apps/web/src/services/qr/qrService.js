@@ -12,7 +12,7 @@
 import crypto from 'crypto';
 import sql from '../../app/api/utils/sql.js';
 import { generateQRCard } from './generator.js';
-import { sendImageMessage } from '../whatsapp/metaSender.js';
+import { sendQRTemplate } from '../whatsapp/metaSender.js';
 
 const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
 
@@ -78,7 +78,7 @@ export async function generateAndSendQRCards(guest) {
           ? 'بطاقة الضيف الرئيسي 🎫'
           : `بطاقة المرافق ${label.replace('companion-', '')} 🎫`;
 
-        await sendImageMessage({ phone: guest.phone, imageUrl, caption });
+        await sendQRTemplate({ phone: guest.phone, imageUrl });
         console.log(`[QR] sent label=${label} to ${guest.phone}`);
 
         await sleep(700); // stay within Meta rate limits
