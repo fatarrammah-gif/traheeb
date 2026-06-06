@@ -32,11 +32,14 @@ export async function POST(request) {
       return Response.json({ error: 'رقم الجوال غير صحيح' }, { status: 400 });
     }
 
-    await client.verify.v2.services(SERVICE_SID).verifications.create({
+    console.log(`[OTP send] to=${phone} sid=${SERVICE_SID?.slice(0,10)}…`);
+
+    const verification = await client.verify.v2.services(SERVICE_SID).verifications.create({
       to: phone,
       channel: 'sms',
     });
 
+    console.log(`[OTP send] status=${verification.status} to=${phone}`);
     return Response.json({ success: true, expiresIn: 300 });
   } catch (err) {
     console.error('[OTP send]', err.message);
