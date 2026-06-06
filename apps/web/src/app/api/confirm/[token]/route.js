@@ -49,7 +49,8 @@ export async function GET(request, { params }) {
     `;
 
     // Generate QR tokens: 1 for guest + 1 per companion
-    const labels = ['main', ...Array.from({ length: guest.companions }, (_, i) => `companion-${i + 1}`)];
+    const companions = Math.max(0, guest.companions ?? 0);
+    const labels = ['main', ...Array.from({ length: companions }, (_, i) => `companion-${i + 1}`)];
     const qrTokens = [];
 
     for (const label of labels) {
@@ -64,7 +65,7 @@ export async function GET(request, { params }) {
 
     // Generate styled QR PNGs and send to guest via organizer's WhatsApp session (non-blocking)
     generateAndSendQRs(guest, qrTokens).catch(err =>
-      console.error('[QR generation/send]', err)
+      console.error('[confirm] QR generation/send error:', err.message)
     );
 
     return Response.redirect(`${BASE_URL}/confirm/${params.token}?result=success`);
@@ -75,35 +76,19 @@ export async function GET(request, { params }) {
 }
 
 async function generateAndSendQRs(guest, qrTokens) {
-  // Fetch logo buffer if available
-  let logoBuffer = null;
-  if (guest.event_logo_url) {
-    try {
-      const res = await fetch(guest.event_logo_url);
-      if (res.ok) logoBuffer = Buffer.from(await res.arrayBuffer());
-    } catch {
-      // no logo — proceed without
-    }
-  }
-
-  // Fetch QR background buffer if available
-  let bgBuffer = null;
-  if (guest.qr_background_url) {
-    try {
-      const res = await fetch(guest.qr_background_url);
-      if (res.ok) bgBuffer = Buffer.from(await res.arrayBuffer());
-    } catch {
-      // no background — proceed without
-    }
-  }
+  // Fetch image buffers
+  const [logoBuffer, bgBuffer] = await Promise.all([
+    fetchBuffer(guest.event_logo_url),
+    fetchBuffer(guest.qr_background_url),
+  ]);
 
   const qrBuffers = [];
   const captions = [];
 
   for (const qt of qrTokens) {
     const pngBuffer = await generateQRCard({
-      token: qt.token,
-      label: qt.label,
+      token:     qt.token,
+      label:     qt.label,
       eventName: guest.event_name,
       eventDate: guest.event_date,
       eventTime: guest.event_time,
@@ -114,12 +99,23 @@ async function generateAndSendQRs(guest, qrTokens) {
     captions.push(qrConfirmationMessage({
       guestName: guest.name,
       eventName: guest.event_name,
-      label: qt.label,
+      label:     qt.label,
     }));
   }
 
   // Send to guest via organizer's WhatsApp session
   if (isConnected(guest.organizer_user_id)) {
     await sendImages(guest.organizer_user_id, guest.phone, qrBuffers, captions[0]);
+  }
+}
+
+async function fetchBuffer(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
   }
 }
