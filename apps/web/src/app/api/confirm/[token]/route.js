@@ -5,7 +5,7 @@
  */
 import sql from '../../utils/sql.js';
 import crypto from 'crypto';
-import { generateStyledQR } from '../../../../services/qr/generator.js';
+import { generateQRCard } from '../../../../services/qr/generator.js';
 import { isConnected } from '../../../../services/whatsapp/SessionManager.js';
 import { sendImages } from '../../../../services/whatsapp/sender.js';
 import { qrConfirmationMessage } from '../../../../services/whatsapp/templates.js';
@@ -18,6 +18,8 @@ export async function GET(request, { params }) {
     const rows = await sql`
       SELECT
         g.*, e.name AS event_name, e.event_logo_url,
+        e.date AS event_date, e.time AS event_time,
+        e.qr_background_url,
         e.user_id AS organizer_user_id
       FROM traheeb_guests g
       JOIN traheeb_events e ON e.id = g.event_id
@@ -84,11 +86,30 @@ async function generateAndSendQRs(guest, qrTokens) {
     }
   }
 
+  // Fetch QR background buffer if available
+  let bgBuffer = null;
+  if (guest.qr_background_url) {
+    try {
+      const res = await fetch(guest.qr_background_url);
+      if (res.ok) bgBuffer = Buffer.from(await res.arrayBuffer());
+    } catch {
+      // no background — proceed without
+    }
+  }
+
   const qrBuffers = [];
   const captions = [];
 
   for (const qt of qrTokens) {
-    const pngBuffer = await generateStyledQR(qt.token, logoBuffer);
+    const pngBuffer = await generateQRCard({
+      token: qt.token,
+      label: qt.label,
+      eventName: guest.event_name,
+      eventDate: guest.event_date,
+      eventTime: guest.event_time,
+      bgBuffer,
+      logoBuffer,
+    });
     qrBuffers.push(pngBuffer);
     captions.push(qrConfirmationMessage({
       guestName: guest.name,
