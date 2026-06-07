@@ -183,7 +183,7 @@ export async function sendTextMessage({ phone, text }) {
 }
 
 /**
- * Send the qr_code_tm_4 template to a guest.
+ * Send the qr_code_tm_3 template to a guest.
  * Template has an image header and fixed Arabic body text — no variables.
  */
 export async function sendQRTemplate({ phone, imageUrl }) {
@@ -197,7 +197,7 @@ export async function sendQRTemplate({ phone, imageUrl }) {
     to,
     type: 'template',
     template: {
-      name: 'qr_code_tm_4',
+      name: 'qr_code_tm_3',
       language: { code: 'ar' },
       components: [
         {
@@ -223,7 +223,7 @@ export async function sendQRTemplate({ phone, imageUrl }) {
     throw new Error(`Meta API error (${res.status}): ${json?.error?.message ?? JSON.stringify(json)}`);
   }
 
-  console.log(`[Meta] qr_code_tm_4 sent to ${to} message_id=${json.messages?.[0]?.id}`);
+  console.log(`[Meta] qr_code_tm_3 sent to ${to} message_id=${json.messages?.[0]?.id}`);
   return json;
 }
 

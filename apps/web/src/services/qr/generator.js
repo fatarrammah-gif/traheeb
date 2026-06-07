@@ -1,59 +1,62 @@
 /**
  * QR card generator — ticket-style PNG (800 × 1050 px)
  *
- * Graphics (background, QR gradient, golden border, separator lines, notch circles)
- * are rendered via node-canvas.
+ * Approach:
+ *   1. Build gradient QR image via canvas (complex compositing)
+ *   2. Render card design as HTML + CSS via Puppeteer (full Arabic support)
+ *   3. Screenshot the card element → PNG buffer
  *
- * Text + icons are rendered via an SVG overlay composited by sharp.
- * sharp → librsvg → Pango handles Arabic shaping/BiDi correctly.
- *
- * Layout (RTL, top → bottom):
- *   تذكرة دخول: المستضيف الرئيسي   (bold 26px, dark)
- *   [event name]                     (18px, muted)
- *   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   (dashed separator — canvas)
- *   🗓 [date]  ·  [time] 🕐         (bold 30px with SVG icons)
- *   ┌─────── golden border ────────┐
- *   │   QR code (black→logo grad)  │
- *   └──────────────────────────────┘
- *   TOKEN CODE
- *   - - - - - - - - (perforation) -
- *   الرجاء إبراز البطاقة عند الدخول
+ * Arabic text is handled natively by Chrome's text engine — no reshaper needed.
  */
+import puppeteer  from 'puppeteer';
 import { createCanvas, loadImage } from 'canvas';
-import QRCode      from 'qrcode';
-import sharp       from 'sharp';
+import QRCode     from 'qrcode';
+import sharp      from 'sharp';
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join, dirname } from 'path';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
 
-// ── Embed Arabic font as base64 so librsvg never needs to search OS fonts ─────
-// Read lazily on first use to avoid module-load-time path errors.
+// ── Puppeteer singleton ───────────────────────────────────────────────────────
+const BROWSER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--no-first-run',
+  '--disable-extensions',
+];
+
+let _browser = null;
+async function getBrowser() {
+  if (_browser) {
+    try { await _browser.pages(); return _browser; } catch { _browser = null; }
+  }
+  _browser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
+  console.log('[generator] Puppeteer browser launched');
+  return _browser;
+}
+
+// ── Arabic font (Cairo) — embedded as base64 for reliable Railway rendering ───
 let _fontB64 = null;
 function getFontB64() {
   if (_fontB64) return _fontB64;
-  // Candidate paths in priority order:
-  //   1. process.cwd()-relative: works on Railway (cwd = /app/apps/web)
-  //   2. import.meta.url-relative: works in local dev (src/services/qr/ → src/assets/fonts/)
   const candidates = [
     join(process.cwd(), 'src/assets/fonts/Cairo.ttf'),
     join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts/Cairo.ttf'),
   ];
   const found = candidates.find(existsSync);
   if (!found) throw new Error(`Cairo.ttf not found. Tried:\n${candidates.join('\n')}`);
-  console.log(`[generator] loading font from: ${found}`);
   _fontB64 = readFileSync(found).toString('base64');
+  console.log(`[generator] font loaded from: ${found}`);
   return _fontB64;
 }
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
-const CARD_W     = 800;
-const CARD_H     = 1050;
-const QR_SIZE    = 460;
-const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);   // 170
-const QR_TOP     = 270;
-const BORDER_PAD = 22;
-const PERF_Y     = 870;
+const CARD_W  = 800;
+const CARD_H  = 1050;
+const QR_SIZE = 460;
+const PERF_Y  = 870;
 
 /**
  * @param {object} p
@@ -62,7 +65,7 @@ const PERF_Y     = 870;
  * @param {string}      p.eventName
  * @param {string}      p.eventDate
  * @param {string}      p.eventTime
- * @param {Buffer|null} p.bgBuffer     (ignored — bg derived from logo color)
+ * @param {Buffer|null} p.bgBuffer
  * @param {Buffer|null} p.logoBuffer
  * @returns {Promise<Buffer>} PNG buffer
  */
@@ -71,7 +74,7 @@ export async function generateQRCard({
 }) {
   console.log(`[generator] building card label=${label} token=${token.slice(0, 8)}…`);
 
-  // ── 1. Colors ───────────────────────────────────────────────────────────────
+  // ── 1. Colors from logo ─────────────────────────────────────────────────────
   let darkColor = '#1A0910';
   let lightBg   = '#F5EFF5';
   let stubBg    = '#EDE4ED';
@@ -80,118 +83,25 @@ export async function generateQRCard({
     darkColor = await extractDarkestColor(logoBuffer);
     lightBg   = await extractLightBgColor(logoBuffer);
     stubBg    = lightenHex(darkColor, 0.88);
-    console.log(`[generator] darkColor=${darkColor} lightBg=${lightBg}`);
+    console.log(`[generator] colors: dark=${darkColor} light=${lightBg}`);
   }
 
   const { r: dR, g: dG, b: dB } = hexToRgb(darkColor);
-  const mutedRgba = `rgba(${dR},${dG},${dB},0.5)`;
+  const mutedColor = `rgba(${dR},${dG},${dB},0.5)`;
 
-  // ── 2. QR code (gradient: black → darkColor, transparent bg) ───────────────
-  const qrSvg = await QRCode.toString(token, {
-    type: 'svg',
-    width: QR_SIZE,
-    margin: 1,
-    errorCorrectionLevel: 'H',
-    color: { dark: '#000000', light: '#FFFFFF00' },
-  });
-  const qrTransparentBuf = await sharp(Buffer.from(qrSvg))
-    .resize(QR_SIZE, QR_SIZE)
-    .png()
-    .toBuffer();
+  // ── 2. Gradient QR code → base64 PNG ────────────────────────────────────────
+  const qrDataUrl = await buildGradientQR(token, QR_SIZE, darkColor, logoBuffer);
 
-  // Build gradient QR on its own canvas
-  const qrCanvas = createCanvas(QR_SIZE, QR_SIZE);
-  const qrCtx   = qrCanvas.getContext('2d');
-  qrCtx.fillStyle = '#FFFFFF';
-  qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
-  const qrGrad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
-  qrGrad.addColorStop(0, '#000000');
-  qrGrad.addColorStop(1, darkColor);
-  qrCtx.fillStyle = qrGrad;
-  qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
-  qrCtx.globalCompositeOperation = 'destination-in';
-  qrCtx.drawImage(await loadImage(qrTransparentBuf), 0, 0);
-  qrCtx.globalCompositeOperation = 'source-over';
-
-  // Overlay logo in QR center
+  // ── 3. Logo → base64 (for header top, optional) ─────────────────────────────
+  let logoDataUrl = null;
   if (logoBuffer) {
-    const logoSize = Math.round(QR_SIZE * 0.18);
-    const pad = 8;
-    const logoBuf = await sharp(logoBuffer)
-      .resize(logoSize, logoSize, { fit: 'inside' })
-      .extend({ top: pad, bottom: pad, left: pad, right: pad,
-                background: { r: 255, g: 255, b: 255, alpha: 1 } })
+    const resized = await sharp(logoBuffer)
+      .resize(80, 80, { fit: 'inside' })
       .png().toBuffer();
-    const offset = Math.round((QR_SIZE - logoSize - pad * 2) / 2);
-    qrCtx.drawImage(await loadImage(logoBuf), offset, offset);
+    logoDataUrl = `data:image/png;base64,${resized.toString('base64')}`;
   }
 
-  // ── 3. Main canvas — background, QR, border, separator, perforation ─────────
-  const canvas = createCanvas(CARD_W, CARD_H);
-  const ctx    = canvas.getContext('2d');
-
-  // Background
-  ctx.fillStyle = lightBg;
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
-  // Stub (below perforation)
-  ctx.fillStyle = stubBg;
-  ctx.fillRect(0, PERF_Y, CARD_W, CARD_H - PERF_Y);
-
-  // Draw QR on white background
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(QR_LEFT, QR_TOP, QR_SIZE, QR_SIZE);
-  ctx.drawImage(qrCanvas, QR_LEFT, QR_TOP);
-
-  // ── 4. Golden border around QR ──────────────────────────────────────────────
-  const bx = QR_LEFT  - BORDER_PAD;
-  const by = QR_TOP   - BORDER_PAD;
-  const bw = QR_SIZE  + BORDER_PAD * 2;
-  const bh = QR_SIZE  + BORDER_PAD * 2;
-
-  const goldGrad = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
-  goldGrad.addColorStop(0,    '#FFF5A0');
-  goldGrad.addColorStop(0.35, '#DAA520');
-  goldGrad.addColorStop(0.7,  '#C8860A');
-  goldGrad.addColorStop(1,    '#FFE070');
-  ctx.strokeStyle = goldGrad;
-  ctx.lineWidth   = 2.5;
-  roundedRect(ctx, bx, by, bw, bh, 16);
-  ctx.stroke();
-
-  // ── 5. Dashed separator line ─────────────────────────────────────────────────
-  ctx.save();
-  ctx.strokeStyle = mutedRgba;
-  ctx.lineWidth   = 1;
-  ctx.setLineDash([4, 5]);
-  ctx.beginPath();
-  ctx.moveTo(80, 125);
-  ctx.lineTo(CARD_W - 80, 125);
-  ctx.stroke();
-  ctx.restore();
-
-  // ── 6. Perforated line ───────────────────────────────────────────────────────
-  ctx.save();
-  ctx.strokeStyle = mutedRgba;
-  ctx.lineWidth   = 1.2;
-  ctx.setLineDash([9, 7]);
-  ctx.beginPath();
-  ctx.moveTo(32, PERF_Y);
-  ctx.lineTo(CARD_W - 32, PERF_Y);
-  ctx.stroke();
-  ctx.restore();
-
-  // Side notch circles
-  ctx.fillStyle = lightBg;
-  ctx.beginPath();
-  ctx.arc(0, PERF_Y, 16, -Math.PI / 2, Math.PI / 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(CARD_W, PERF_Y, 16, Math.PI / 2, -Math.PI / 2);
-  ctx.fill();
-
-  // ── 7. Export canvas, then overlay text via SVG (librsvg → Pango → Arabic) ───
-  const canvasBuf = canvas.toBuffer('image/png');
-
+  // ── 4. Build HTML card ───────────────────────────────────────────────────────
   const ticketLabel = label === 'main'
     ? 'تذكرة دخول: المستضيف الرئيسي'
     : 'تذكرة دخول: مرافق';
@@ -199,127 +109,338 @@ export async function generateQRCard({
   const tokenDisplay = token.slice(0, 12).toUpperCase()
     .replace(/(.{4})/g, '$1 ').trim();
 
-  const svgOverlay = buildTextSVG({
+  const html = buildCardHtml({
     ticketLabel,
-    eventName:  String(eventName  ?? ''),
-    eventDate:  String(eventDate  ?? ''),
-    eventTime:  String(eventTime  ?? ''),
+    eventName:    String(eventName  ?? ''),
+    eventDate:    String(eventDate  ?? ''),
+    eventTime:    String(eventTime  ?? ''),
     tokenDisplay,
+    qrDataUrl,
+    logoDataUrl,
     darkColor,
-    dR, dG, dB,
+    lightBg,
+    stubBg,
+    mutedColor,
   });
 
-  const card = await sharp(canvasBuf)
-    .composite([{ input: Buffer.from(svgOverlay), blend: 'over' }])
-    .png()
-    .toBuffer();
-
-  console.log(`[generator] card built label=${label} size=${card.length} bytes`);
-  return card;
+  // ── 5. Puppeteer screenshot ──────────────────────────────────────────────────
+  const browser = await getBrowser();
+  const page    = await browser.newPage();
+  try {
+    await page.setViewport({ width: CARD_W, height: CARD_H, deviceScaleFactor: 1 });
+    await page.setContent(html, { waitUntil: 'load' });
+    const element = await page.$('#card');
+    const card = await element.screenshot({ type: 'png' });
+    console.log(`[generator] card built label=${label} size=${card.length} bytes`);
+    return card;
+  } finally {
+    await page.close();
+  }
 }
 
-// ── SVG text + icon overlay ────────────────────────────────────────────────────
-// Rendered by sharp → librsvg → Pango, which handles Arabic shaping/BiDi correctly.
+// ── HTML card template ─────────────────────────────────────────────────────────
 
-function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime, tokenDisplay, darkColor, dR, dG, dB }) {
-  const muted = `rgba(${dR},${dG},${dB},0.5)`;
-  const AR = 'font-family="Cairo, sans-serif"';
+function buildCardHtml({
+  ticketLabel, eventName, eventDate, eventTime, tokenDisplay,
+  qrDataUrl, logoDataUrl, darkColor, lightBg, stubBg, mutedColor,
+}) {
+  const fontB64 = getFontB64();
 
-  // Calendar icon (SVG paths, mirroring the canvas drawCalendarIcon at x=740,y=152)
-  const calIcon = `
-    <g stroke="${darkColor}" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="740" y="155" width="22" height="20" rx="4"/>
-      <line x1="740" y1="161" x2="762" y2="161"/>
-      <line x1="747" y1="152" x2="747" y2="157"/>
-      <line x1="755" y1="152" x2="755" y2="157"/>
-    </g>`;
+  const calIcon = `<svg width="22" height="23" viewBox="0 0 22 23" fill="none"
+      stroke="${darkColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="3" width="22" height="20" rx="4"/>
+    <line x1="0" y1="9" x2="22" y2="9"/>
+    <line x1="7" y1="0" x2="7" y2="5"/>
+    <line x1="15" y1="0" x2="15" y2="5"/>
+  </svg>`;
 
-  // Clock icon (fixed at x=200,y=152 — time text occupies x=60..~185)
-  const clkIcon = `
-    <g stroke="${darkColor}" fill="none" stroke-width="1.8" stroke-linecap="round">
-      <circle cx="211" cy="163" r="11"/>
-      <line x1="211" y1="163" x2="211" y2="157"/>
-      <line x1="211" y1="163" x2="216" y2="163"/>
-    </g>`;
+  const clkIcon = `<svg width="22" height="22" viewBox="0 0 22 22" fill="none"
+      stroke="${darkColor}" stroke-width="1.8" stroke-linecap="round">
+    <circle cx="11" cy="11" r="10"/>
+    <line x1="11" y1="11" x2="11" y2="5"/>
+    <line x1="11" y1="11" x2="16" y2="11"/>
+  </svg>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
-  <defs>
-    <style>
-      @font-face {
-        font-family: 'Cairo';
-        src: url('data:font/truetype;base64,${getFontB64()}') format('truetype');
-        font-weight: 100 900;
-      }
-    </style>
-  </defs>
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face {
+    font-family: 'Cairo';
+    src: url('data:font/truetype;base64,${fontB64}') format('truetype');
+    font-weight: 100 900;
+  }
 
-  <!-- Ticket type label -->
-  <text ${AR} x="${CARD_W / 2}" y="65"
-        text-anchor="middle" direction="rtl" unicode-bidi="embed"
-        font-size="26" font-weight="bold" fill="${darkColor}">${escXml(ticketLabel)}</text>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: ${CARD_W}px;
+    height: ${CARD_H}px;
+    overflow: hidden;
+    background: ${lightBg};
+    font-family: 'Cairo', sans-serif;
+    direction: rtl;
+  }
+
+  #card {
+    width: ${CARD_W}px;
+    height: ${CARD_H}px;
+    position: relative;
+    background: ${lightBg};
+    overflow: hidden;
+  }
+
+  /* ── Stub area (below perforation) ─────────────────── */
+  .stub-bg {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: ${CARD_H - PERF_Y}px;
+    background: ${stubBg};
+  }
+
+  /* ── Header text ────────────────────────────────────── */
+  .ticket-label {
+    position: absolute;
+    top: 38px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 26px;
+    font-weight: 700;
+    color: ${darkColor};
+    letter-spacing: 0.5px;
+  }
+
+  .event-name {
+    position: absolute;
+    top: 76px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 18px;
+    color: ${mutedColor};
+  }
+
+  /* ── Dashed separator ───────────────────────────────── */
+  .separator {
+    position: absolute;
+    top: 105px;
+    left: 80px; right: 80px;
+    border-top: 1px dashed ${mutedColor};
+  }
+
+  /* ── Date / time row ────────────────────────────────── */
+  .datetime-row {
+    position: absolute;
+    top: 122px;
+    left: 40px; right: 40px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    direction: rtl;
+  }
+
+  .date-block, .time-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .date-block { flex-direction: row; }   /* icon on left of text (RTL: icon appears after date) */
+  .time-block { flex-direction: row-reverse; } /* icon on right of text (RTL: icon appears before time) */
+
+  .date-text, .time-text {
+    font-size: 28px;
+    font-weight: 700;
+    color: ${darkColor};
+    line-height: 1;
+  }
+
+  .dot-sep {
+    font-size: 32px;
+    font-weight: 700;
+    color: ${mutedColor};
+    line-height: 1;
+  }
+
+  /* ── QR code with golden border ─────────────────────── */
+  .qr-wrapper {
+    position: absolute;
+    top: 248px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #FFF5A0 0%, #DAA520 35%, #C8860A 70%, #FFE070 100%);
+    box-shadow: 0 2px 16px rgba(180,130,0,0.18);
+  }
+
+  .qr-inner {
+    background: #fff;
+    border-radius: 15px;
+    overflow: hidden;
+    display: block;
+  }
+
+  .qr-inner img {
+    width: ${QR_SIZE}px;
+    height: ${QR_SIZE}px;
+    display: block;
+  }
+
+  /* ── Token code ─────────────────────────────────────── */
+  .token-code {
+    position: absolute;
+    top: 795px;
+    left: 0; right: 0;
+    text-align: center;
+    font-family: monospace;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: ${darkColor};
+    direction: ltr;
+  }
+
+  /* ── Perforation line ───────────────────────────────── */
+  .perf-line {
+    position: absolute;
+    top: ${PERF_Y}px;
+    left: 32px; right: 32px;
+    border-top: 1.2px dashed ${mutedColor};
+  }
+
+  /* Notch circles */
+  .notch {
+    position: absolute;
+    top: ${PERF_Y - 16}px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: ${lightBg};
+  }
+  .notch-left  { left:  -16px; }
+  .notch-right { right: -16px; }
+
+  /* ── Stub text ───────────────────────────────────────── */
+  .stub-text {
+    position: absolute;
+    top: ${PERF_Y + 42}px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 15px;
+    color: ${mutedColor};
+  }
+</style>
+</head>
+<body>
+<div id="card">
+
+  <!-- Stub background -->
+  <div class="stub-bg"></div>
+
+  <!-- Ticket label -->
+  <div class="ticket-label">${escHtml(ticketLabel)}</div>
 
   <!-- Event name -->
-  <text ${AR} x="${CARD_W / 2}" y="105"
-        text-anchor="middle" direction="rtl" unicode-bidi="embed"
-        font-size="18" fill="${muted}">${escXml(eventName)}</text>
+  <div class="event-name">${escHtml(eventName)}</div>
 
-  <!-- Calendar icon -->
-  ${calIcon}
+  <!-- Dashed separator -->
+  <div class="separator"></div>
 
-  <!-- Date (right of calendar icon, right-aligned) -->
-  <text ${AR} x="732" y="175"
-        text-anchor="end" direction="rtl" unicode-bidi="embed"
-        font-size="30" font-weight="bold" fill="${darkColor}">${escXml(eventDate)}</text>
+  <!-- Date / time row -->
+  <div class="datetime-row">
+    <div class="date-block">
+      ${calIcon}
+      <span class="date-text">${escHtml(eventDate)}</span>
+    </div>
+    <span class="dot-sep">·</span>
+    <div class="time-block">
+      ${clkIcon}
+      <span class="time-text">${escHtml(eventTime)}</span>
+    </div>
+  </div>
 
-  <!-- Dot separator -->
-  <text x="${CARD_W / 2}" y="175"
-        text-anchor="middle" font-size="30" font-weight="bold" fill="${muted}">·</text>
-
-  <!-- Time (left-aligned, before clock icon) -->
-  <text ${AR} x="60" y="175"
-        text-anchor="start" font-size="30" font-weight="bold" fill="${darkColor}">${escXml(eventTime)}</text>
-
-  <!-- Clock icon -->
-  ${clkIcon}
+  <!-- QR code with golden border -->
+  <div class="qr-wrapper">
+    <div class="qr-inner">
+      <img src="${qrDataUrl}" alt="QR" />
+    </div>
+  </div>
 
   <!-- Token code -->
-  <text font-family="monospace" x="${CARD_W / 2}" y="820"
-        text-anchor="middle" font-size="22" font-weight="bold" fill="${darkColor}">${escXml(tokenDisplay)}</text>
+  <div class="token-code">${escHtml(tokenDisplay)}</div>
+
+  <!-- Perforation -->
+  <div class="perf-line"></div>
+  <div class="notch notch-left"></div>
+  <div class="notch notch-right"></div>
 
   <!-- Stub text -->
-  <text ${AR} x="${CARD_W / 2}" y="${PERF_Y + 60}"
-        text-anchor="middle" direction="rtl" unicode-bidi="embed"
-        font-size="15" fill="${muted}">الرجاء إبراز البطاقة عند الدخول</text>
+  <div class="stub-text">الرجاء إبراز البطاقة عند الدخول</div>
 
-</svg>`;
+</div>
+</body>
+</html>`;
 }
 
-// ── Drawing helpers ────────────────────────────────────────────────────────────
+// ── Gradient QR builder (canvas) ──────────────────────────────────────────────
 
-function roundedRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y,     x + w, y + r,     r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x,     y + h, x,     y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x,     y,     x + r, y,         r);
-  ctx.closePath();
+async function buildGradientQR(token, size, darkColor, logoBuffer) {
+  const qrSvg = await QRCode.toString(token, {
+    type: 'svg', width: size, margin: 1,
+    errorCorrectionLevel: 'H',
+    color: { dark: '#000000', light: '#FFFFFF00' },
+  });
+  const qrTransparent = await sharp(Buffer.from(qrSvg)).resize(size, size).png().toBuffer();
+
+  const qrCanvas = createCanvas(size, size);
+  const ctx      = qrCanvas.getContext('2d');
+
+  // White base
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, size, size);
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, '#000000');
+  grad.addColorStop(1, darkColor);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Clip to QR shape
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(await loadImage(qrTransparent), 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Logo in center
+  if (logoBuffer) {
+    const logoSize = Math.round(size * 0.18);
+    const pad = 8;
+    const logoBuf = await sharp(logoBuffer)
+      .resize(logoSize, logoSize, { fit: 'inside' })
+      .extend({ top: pad, bottom: pad, left: pad, right: pad,
+                background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .png().toBuffer();
+    const offset = Math.round((size - logoSize - pad * 2) / 2);
+    ctx.drawImage(await loadImage(logoBuf), offset, offset);
+  }
+
+  const buf = qrCanvas.toBuffer('image/png');
+  return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
-/** Escape text for safe embedding in SVG. */
-function escXml(str) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-
-// ── Color helpers ──────────────────────────────────────────────────────────────
 
 function hexToRgb(hex) {
   return {
