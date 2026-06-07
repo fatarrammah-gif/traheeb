@@ -210,25 +210,25 @@ export async function generateQRCard({
   ctx.textAlign = 'center';
   ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 110);
 
-  // ── Date line (largest text on card) ────────────────────────────────────────
-  // Calendar icon (golden, size 36) on the right; date text logo dark color
-  const calIconX = 726, calIconY = 160;
-  drawCalendarIcon(ctx, calIconX, calIconY, GOLD_TEXT, 36);
+  // ── Date line — centered, black, 50px ───────────────────────────────────────
+  const dateStr  = ar(String(eventDate ?? ''));
+  ctx.font       = `50px ${_fontFamily}`;
+  ctx.fillStyle  = '#000000';
+  ctx.textAlign  = 'center';
+  const dateW    = ctx.measureText(dateStr).width;
+  // Calendar icon: right side of centered text + gap
+  drawCalendarIcon(ctx, CARD_W / 2 + dateW / 2 + 8, 165, GOLD_TEXT, 36);
+  ctx.fillText(dateStr, CARD_W / 2, 202);
 
-  ctx.font      = `44px ${_fontFamily}`;
-  ctx.fillStyle = darkColor;
-  ctx.textAlign = 'right';
-  ctx.fillText(ar(String(eventDate ?? '')), calIconX - 10, 198);
-
-  // ── Time line (same size as date) ───────────────────────────────────────────
-  // Time text left-aligned, clock icon (golden, size 36) to the right
+  // ── Time line — centered, black, 50px ───────────────────────────────────────
   const timeText = ar(String(eventTime ?? ''));
-  ctx.font       = `44px ${_fontFamily}`;
-  ctx.fillStyle  = darkColor;
-  ctx.textAlign  = 'left';
-  ctx.fillText(timeText, 60, 266);
+  ctx.font       = `50px ${_fontFamily}`;
+  ctx.fillStyle  = '#000000';
+  ctx.textAlign  = 'center';
   const timeWidth = ctx.measureText(timeText).width;
-  drawClockIcon(ctx, 60 + timeWidth + 12, 230, GOLD_TEXT, 36);
+  // Clock icon: right side of centered text + gap
+  drawClockIcon(ctx, CARD_W / 2 + timeWidth / 2 + 8, 235, GOLD_TEXT, 36);
+  ctx.fillText(timeText, CARD_W / 2, 272);
 
   // Token code
   const tokenDisplay = token.slice(0, 12).toUpperCase()
