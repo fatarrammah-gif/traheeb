@@ -25,33 +25,33 @@ import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExt
 // ── Arabic text pipeline ──────────────────────────────────────────────────────
 const bidi = bidiJs();
 function ar(text) {
-  const reshaped = arabicReshaper.convertLanguage(String(text ?? ''));
-  return bidi.getReorderedText(reshaped, 'rtl');
+  const reshaped = arabicReshaper.convertArabic(String(text ?? ''));
+  return bidi.getReorderedString(reshaped, bidi.getEmbeddingLevels(reshaped, 'rtl'));
 }
 
-// ── Font registration (Noto Sans Arabic, installed via nixpacks) ──────────────
-const FONT_PATHS = {
-  regular: [
-    '/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf',
-    '/usr/share/fonts/opentype/noto/NotoSansArabic-Regular.ttf',
-    '/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf',
-    '/usr/share/fonts/truetype/fonts-arabic/KacstOffice.ttf',
-  ],
-  bold: [
-    '/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf',
-    '/usr/share/fonts/opentype/noto/NotoSansArabic-Bold.ttf',
-    '/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf',
-  ],
-};
+// Arabic font family — fontconfig resolves these from the system font catalog
+// (fonts-noto-extra installs "Noto Sans Arabic"; fonts-arabic installs KACST fonts)
+const ARABIC_FONT = '"Noto Sans Arabic", "Noto Naskh Arabic", "KacstOffice", sans-serif';
+
+// Optional: register a font file if found, for guaranteed rendering
+const FONT_PATHS = [
+  '/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf',
+  '/usr/share/fonts/opentype/noto/NotoSansArabic-Regular.ttf',
+  '/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf',
+];
+const FONT_BOLD_PATHS = [
+  '/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf',
+  '/usr/share/fonts/opentype/noto/NotoSansArabic-Bold.ttf',
+];
 
 let _fontsReady = false;
 function ensureFonts() {
   if (_fontsReady) return;
-  const reg  = FONT_PATHS.regular.find(existsSync);
-  const bold = FONT_PATHS.bold.find(existsSync);
-  if (reg)  registerFont(reg,  { family: 'Arabic', weight: 'normal' });
-  if (bold) registerFont(bold, { family: 'Arabic', weight: 'bold' });
-  console.log(`[generator] fonts: regular=${reg ?? 'fallback'} bold=${bold ?? 'fallback'}`);
+  const reg  = FONT_PATHS.find(existsSync);
+  const bold = FONT_BOLD_PATHS.find(existsSync);
+  if (reg)  registerFont(reg,  { family: 'NotoArabic', weight: 'normal' });
+  if (bold) registerFont(bold, { family: 'NotoArabic', weight: 'bold' });
+  console.log(`[generator] fonts registered: regular=${reg ?? 'via fontconfig'} bold=${bold ?? 'via fontconfig'}`);
   _fontsReady = true;
 }
 
@@ -176,13 +176,15 @@ export async function generateQRCard({
     ? 'تذكرة دخول: المستضيف الرئيسي'
     : 'تذكرة دخول: مرافق';
 
-  ctx.font      = 'bold 26px Arabic, sans-serif';
+  const AR_FONT = '"NotoArabic", "Noto Sans Arabic", "Noto Naskh Arabic", sans-serif';
+
+  ctx.font      = `bold 26px ${AR_FONT}`;
   ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
   ctx.fillText(ar(ticketLabel), CARD_W / 2, 65);
 
   // ── 6. Text: event name ─────────────────────────────────────────────────────
-  ctx.font      = '18px Arabic, sans-serif';
+  ctx.font      = `18px ${AR_FONT}`;
   ctx.fillStyle = mutedRgba;
   ctx.textAlign = 'center';
   ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 105);
@@ -199,11 +201,10 @@ export async function generateQRCard({
   ctx.restore();
 
   // ── 8. Date block (right side): [date text] [calendar icon] ─────────────────
-  // Calendar icon on the right, date text right-aligned to the left of it
   const calIconX = 740, calIconY = 152;
   drawCalendarIcon(ctx, calIconX, calIconY, darkColor);
 
-  ctx.font      = 'bold 30px Arabic, sans-serif';
+  ctx.font      = `bold 30px ${AR_FONT}`;
   ctx.fillStyle = darkColor;
   ctx.textAlign = 'right';
   ctx.fillText(ar(String(eventDate ?? '')), calIconX - 8, 175);
@@ -214,10 +215,9 @@ export async function generateQRCard({
   ctx.textAlign = 'center';
   ctx.fillText('·', CARD_W / 2, 175);
 
-  // ── 10. Time block (left side): [clock icon] [time text] then icon to right ──
-  // Time text left-aligned, clock icon immediately to its right
+  // ── 10. Time block (left side): [time text] [clock icon] ────────────────────
   const timeText    = ar(String(eventTime ?? ''));
-  ctx.font          = 'bold 30px Arabic, sans-serif';
+  ctx.font          = `bold 30px ${AR_FONT}`;
   const timeMetrics = ctx.measureText(timeText);
   const timeStartX  = 60;
   ctx.fillStyle     = darkColor;
@@ -258,7 +258,7 @@ export async function generateQRCard({
   ctx.fill();
 
   // ── 13. Stub text ─────────────────────────────────────────────────────────────
-  ctx.font      = '15px Arabic, sans-serif';
+  ctx.font      = `15px ${AR_FONT}`;
   ctx.fillStyle = mutedRgba;
   ctx.textAlign = 'center';
   ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 60);
