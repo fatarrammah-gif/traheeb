@@ -35,33 +35,37 @@ function ar(text) {
   }
 }
 
-// ── Font: Amiri committed to repo — zero system dependencies ─────────────────
-// Amiri is a classical Arabic typeface with complete Unicode Presentation Forms
-// coverage, making it ideal for use with arabic-reshaper + FreeType.
+// ── Fonts committed to repo — zero system dependencies ───────────────────────
+// Amiri: classical Arabic typeface, full Presentation Forms → body/label text
+// Cairo: modern geometric Arabic typeface → date/time (distinct style)
 let _fontRegistered = false;
-const _fontFamily = '"Amiri", serif';
+const _fontFamily         = '"Amiri", serif';
+const _dateTimeFontFamily = '"Cairo", "Amiri", serif';
 
 function ensureFont() {
   if (_fontRegistered) return;
   _fontRegistered = true;
 
-  // Resolve font dir relative to this source file (works in dev and production)
-  const base = join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts');
-  const reg  = join(base, 'Amiri-Regular.ttf');
-  const bold = join(base, 'Amiri-Bold.ttf');
-
-  // Fallback: try process.cwd()-relative path (Railway production)
+  const base    = join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts');
   const cwdBase = join(process.cwd(), 'src/assets/fonts');
-  const regCwd  = join(cwdBase, 'Amiri-Regular.ttf');
-  const boldCwd = join(cwdBase, 'Amiri-Bold.ttf');
 
-  const regPath  = existsSync(reg)  ? reg  : existsSync(regCwd)  ? regCwd  : null;
-  const boldPath = existsSync(bold) ? bold : existsSync(boldCwd) ? boldCwd : null;
+  const resolve = (name) => {
+    const p1 = join(base, name), p2 = join(cwdBase, name);
+    return existsSync(p1) ? p1 : existsSync(p2) ? p2 : null;
+  };
 
-  if (regPath)  registerFont(regPath,  { family: 'Amiri', weight: 'normal' });
-  if (boldPath) registerFont(boldPath, { family: 'Amiri', weight: 'bold'   });
+  const regPath   = resolve('Amiri-Regular.ttf');
+  const boldPath  = resolve('Amiri-Bold.ttf');
+  const cairoPath = resolve('Cairo.ttf');
 
-  console.log(`[generator] Amiri font: regular=${regPath ?? 'NOT FOUND'} bold=${boldPath ?? 'NOT FOUND'}`);
+  if (regPath)   registerFont(regPath,   { family: 'Amiri', weight: 'normal' });
+  if (boldPath)  registerFont(boldPath,  { family: 'Amiri', weight: 'bold'   });
+  if (cairoPath) {
+    registerFont(cairoPath, { family: 'Cairo', weight: 'normal' });
+    registerFont(cairoPath, { family: 'Cairo', weight: 'bold'   });
+  }
+
+  console.log(`[generator] fonts: Amiri-reg=${regPath ?? 'NOT FOUND'} Amiri-bold=${boldPath ?? 'NOT FOUND'} Cairo=${cairoPath ?? 'NOT FOUND'}`);
 }
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
@@ -69,7 +73,7 @@ const CARD_W     = 800;
 const CARD_H     = 1050;
 const QR_SIZE    = 440;
 const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);
-const QR_TOP     = 335;   // lower QR → more space for enlarged header
+const QR_TOP     = 360;   // lower QR → more space for enlarged header
 const BORDER_PAD = 12;
 const PERF_Y     = 940;   // smaller bottom stub section
 
@@ -210,33 +214,36 @@ export async function generateQRCard({
   ctx.textAlign = 'center';
   ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 110);
 
-  // ── Date line — centered, black, 50px ───────────────────────────────────────
-  const dateStr  = ar(String(eventDate ?? ''));
-  ctx.font       = `50px ${_fontFamily}`;
-  ctx.fillStyle  = '#000000';
-  ctx.textAlign  = 'center';
-  const dateW    = ctx.measureText(dateStr).width;
-  // Calendar icon: right side of centered text + gap
-  drawCalendarIcon(ctx, CARD_W / 2 + dateW / 2 + 8, 165, GOLD_TEXT, 36);
-  ctx.fillText(dateStr, CARD_W / 2, 202);
+  // ── Date + Time — bold Cairo, black, centered between separator and QR ───────
+  // Available vertical space: separator y=135 to QR_TOP=360 → 225px
+  // Two lines @ ~68px apart → block center at 135+112=247
+  // Date baseline: 247-34=213  Time baseline: 213+68=281
+  const DATE_Y = 213, TIME_Y = 281;
+  const ICON_SZ = 36;
 
-  // ── Time line — centered, black, 50px ───────────────────────────────────────
-  const timeText = ar(String(eventTime ?? ''));
-  ctx.font       = `50px ${_fontFamily}`;
+  const dateStr = ar(String(eventDate ?? ''));
+  ctx.font      = `bold 52px ${_dateTimeFontFamily}`;
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'center';
+  const dateW   = ctx.measureText(dateStr).width;
+  drawCalendarIcon(ctx, CARD_W / 2 + dateW / 2 + 8, DATE_Y - ICON_SZ + 4, GOLD_TEXT, ICON_SZ);
+  ctx.fillText(dateStr, CARD_W / 2, DATE_Y);
+
+  const timeStr  = ar(String(eventTime ?? ''));
+  ctx.font       = `bold 52px ${_dateTimeFontFamily}`;
   ctx.fillStyle  = '#000000';
   ctx.textAlign  = 'center';
-  const timeWidth = ctx.measureText(timeText).width;
-  // Clock icon: right side of centered text + gap
-  drawClockIcon(ctx, CARD_W / 2 + timeWidth / 2 + 8, 235, GOLD_TEXT, 36);
-  ctx.fillText(timeText, CARD_W / 2, 272);
+  const timeW    = ctx.measureText(timeStr).width;
+  drawClockIcon(ctx, CARD_W / 2 + timeW / 2 + 8, TIME_Y - ICON_SZ + 4, GOLD_TEXT, ICON_SZ);
+  ctx.fillText(timeStr, CARD_W / 2, TIME_Y);
 
   // Token code
   const tokenDisplay = token.slice(0, 12).toUpperCase()
     .replace(/(.{4})/g, '$1 ').trim();
-  ctx.font      = 'bold 22px monospace';
+  ctx.font      = 'bold 28px monospace';
   ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
-  ctx.fillText(tokenDisplay, CARD_W / 2, 870);
+  ctx.fillText(tokenDisplay, CARD_W / 2, 878);
 
   // Stub text — bold, larger, logo dark color
   ctx.font      = `bold 26px ${_fontFamily}`;
