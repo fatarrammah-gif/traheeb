@@ -25,6 +25,8 @@ const BROWSER_ARGS = [
   '--disable-gpu',
   '--no-first-run',
   '--disable-extensions',
+  '--force-color-profile=srgb',
+  '--font-render-hinting=none',
 ];
 
 let _browser = null;
@@ -128,9 +130,19 @@ export async function generateQRCard({
   const page    = await browser.newPage();
   try {
     await page.setViewport({ width: CARD_W, height: CARD_H, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: 'load' });
-    const element = await page.$('#card');
-    const card = await element.screenshot({ type: 'png' });
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+
+    // Wait for custom @font-face (Cairo base64) to finish decoding
+    await page.evaluate(() => document.fonts.ready);
+
+    // Extra settle time for layout and paint
+    await new Promise(r => setTimeout(r, 300));
+
+    // Full-viewport clip — more reliable than element.screenshot()
+    const card = await page.screenshot({
+      type: 'png',
+      clip: { x: 0, y: 0, width: CARD_W, height: CARD_H },
+    });
     console.log(`[generator] card built label=${label} size=${card.length} bytes`);
     return card;
   } finally {
