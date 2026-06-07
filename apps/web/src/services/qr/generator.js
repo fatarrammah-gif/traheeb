@@ -12,25 +12,15 @@
 import { createCanvas, loadImage } from 'canvas';
 import QRCode             from 'qrcode';
 import sharp              from 'sharp';
-import { readFileSync, existsSync } from 'fs';
-import { fileURLToPath }  from 'url';
-import { join, dirname }  from 'path';
+import { existsSync } from 'fs';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
 
-// ── Cairo font — loaded once, embedded as base64 in every SVG overlay ─────────
-let _fontB64 = null;
-function getFontB64() {
-  if (_fontB64) return _fontB64;
-  const candidates = [
-    join(process.cwd(), 'src/assets/fonts/Cairo.ttf'),
-    join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts/Cairo.ttf'),
-  ];
-  const found = candidates.find(existsSync);
-  if (!found) throw new Error(`Cairo.ttf not found. Tried:\n${candidates.join('\n')}`);
-  console.log(`[generator] font: ${found}`);
-  _fontB64 = readFileSync(found).toString('base64');
-  return _fontB64;
-}
+// ── Log available Arabic fonts via fontconfig (runs once at module load) ──────
+try {
+  const { execSync } = await import('child_process');
+  const hits = execSync('fc-list :lang=ar --format="%{family}\\n" 2>/dev/null | sort -u', { encoding: 'utf8' }).trim();
+  console.log('[generator] Arabic fonts on system:\n', hits || '(none found)');
+} catch { /* fontconfig not available */ }
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
@@ -183,7 +173,9 @@ export async function generateQRCard({
 function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime,
                          tokenDisplay, darkColor, dR, dG, dB }) {
   const muted = `rgba(${dR},${dG},${dB},0.5)`;
-  const AR    = `font-family="Cairo, sans-serif"`;
+  // Use system Noto Sans Arabic (installed via fonts-noto-extra apt package).
+  // librsvg does NOT support @font-face data-URIs, so we rely on fontconfig.
+  const AR    = `font-family="Noto Sans Arabic, Noto Naskh Arabic, Arabic Typesetting, serif"`;
 
   const calIcon = `
     <g stroke="${darkColor}" fill="none" stroke-width="1.8"
@@ -202,15 +194,6 @@ function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime,
     </g>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
-  <defs>
-    <style>
-      @font-face {
-        font-family: 'Cairo';
-        src: url('data:font/truetype;base64,${getFontB64()}') format('truetype');
-        font-weight: 100 900;
-      }
-    </style>
-  </defs>
 
   <!-- Ticket label -->
   <text ${AR} x="${CARD_W / 2}" y="65"

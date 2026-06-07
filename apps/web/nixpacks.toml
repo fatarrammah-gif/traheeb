@@ -8,5 +8,7 @@ aptPkgs = [
   "libjpeg-dev",
   "libgif-dev",
   "librsvg2-dev",
-  "pkg-config"
+  "pkg-config",
+  "fontconfig"
 ]
+cmds = ["fc-cache -f -v"]
