@@ -13,25 +13,22 @@ import { createCanvas, registerFont, loadImage } from 'canvas';
 import QRCode         from 'qrcode';
 import sharp          from 'sharp';
 import arabicReshaper from 'arabic-reshaper';
-import bidiJs         from 'bidi-js';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join, dirname } from 'path';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
 
 // ── Arabic text pipeline ──────────────────────────────────────────────────────
-// 1. arabic-reshaper  → contextual Unicode Presentation Form codepoints
-// 2. bidi-js          → visual left-to-right paint order
-// 3. ctx.direction='ltr' + Amiri font (has full Presentation Forms coverage)
-//    → FreeType maps each codepoint directly to the correct Arabic glyph
-const _bidi = bidiJs();
-
+// arabic-reshaper converts each letter to its correct contextual Unicode
+// Presentation Form (initial / medial / final / isolated). We then render
+// with ctx.direction = 'rtl' so the canvas paints glyphs right-to-left.
+// Amiri font has full Presentation Forms coverage → FreeType maps each
+// codepoint directly to the correct connected glyph without needing Pango.
 function ar(text) {
   const s = String(text ?? '');
   if (!s.trim()) return s;
   try {
-    const reshaped = arabicReshaper.convertArabic(s);
-    return _bidi.getReorderedString(reshaped, _bidi.getEmbeddingLevels(reshaped, 'rtl'));
+    return arabicReshaper.convertArabic(s);
   } catch (e) {
     console.warn('[generator] arabic shaping error:', e.message);
     return s;
@@ -188,10 +185,9 @@ export async function generateQRCard({
   ctx.beginPath(); ctx.arc(CARD_W, PERF_Y, 16,  Math.PI / 2, -Math.PI / 2); ctx.fill();
 
   // ── 4. Text — shaped Arabic rendered via FreeType ───────────────────────────
-  // All Arabic text is pre-shaped (arabic-reshaper + bidi) so ctx.direction='ltr'
-  // is used throughout; FreeType maps each presentation-form codepoint to the
-  // correct glyph without needing Pango/HarfBuzz.
-  ctx.direction = 'ltr';
+  // arabic-reshaper produces correct glyph forms; ctx.direction='rtl' makes
+  // the canvas paint them right-to-left so the text reads naturally.
+  ctx.direction = 'rtl';
 
   const ticketLabel = label === 'main'
     ? 'تذكرة دخول: المستضيف الرئيسي'
