@@ -67,11 +67,15 @@ function ensureFont() {
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
 const CARD_H     = 1050;
-const QR_SIZE    = 460;
+const QR_SIZE    = 440;
 const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);
-const QR_TOP     = 270;
-const BORDER_PAD = 22;
-const PERF_Y     = 870;
+const QR_TOP     = 300;
+const BORDER_PAD = 12;
+const PERF_Y     = 900;
+
+// ── Gold palette ──────────────────────────────────────────────────────────────
+const GOLD_TEXT  = '#8B6914';
+const GOLD_MUTED = 'rgba(139, 105, 20, 0.6)';
 
 /**
  * @param {object} p
@@ -107,7 +111,7 @@ export async function generateQRCard({
 
   // ── 2. Gradient QR code ─────────────────────────────────────────────────────
   const qrSvg = await QRCode.toString(token, {
-    type: 'svg', width: QR_SIZE, margin: 1,
+    type: 'svg', width: QR_SIZE, margin: 0,
     errorCorrectionLevel: 'H',
     color: { dark: '#000000', light: '#FFFFFF00' },
   });
@@ -163,19 +167,19 @@ export async function generateQRCard({
   goldGrad.addColorStop(0.7,  '#C8860A');
   goldGrad.addColorStop(1,    '#FFE070');
   ctx.strokeStyle = goldGrad;
-  ctx.lineWidth   = 2.5;
+  ctx.lineWidth   = 8;
   roundedRect(ctx, bx, by, bw, bh, 16);
   ctx.stroke();
 
   // Dashed separator
   ctx.save();
-  ctx.strokeStyle = mutedRgba; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
-  ctx.beginPath(); ctx.moveTo(80, 125); ctx.lineTo(CARD_W - 80, 125); ctx.stroke();
+  ctx.strokeStyle = GOLD_MUTED; ctx.lineWidth = 2; ctx.setLineDash([5, 6]);
+  ctx.beginPath(); ctx.moveTo(80, 130); ctx.lineTo(CARD_W - 80, 130); ctx.stroke();
   ctx.restore();
 
   // Perforated line
   ctx.save();
-  ctx.strokeStyle = mutedRgba; ctx.lineWidth = 1.2; ctx.setLineDash([9, 7]);
+  ctx.strokeStyle = GOLD_MUTED; ctx.lineWidth = 2.5; ctx.setLineDash([10, 7]);
   ctx.beginPath(); ctx.moveTo(32, PERF_Y); ctx.lineTo(CARD_W - 32, PERF_Y); ctx.stroke();
   ctx.restore();
 
@@ -194,55 +198,50 @@ export async function generateQRCard({
     : 'تذكرة دخول: مرافق';
 
   // Ticket label
-  ctx.font      = `bold 26px ${_fontFamily}`;
-  ctx.fillStyle = darkColor;
+  ctx.font      = `bold 34px ${_fontFamily}`;
+  ctx.fillStyle = GOLD_TEXT;
   ctx.textAlign = 'center';
   ctx.fillText(ar(ticketLabel), CARD_W / 2, 65);
 
   // Event name
-  ctx.font      = `18px ${_fontFamily}`;
-  ctx.fillStyle = mutedRgba;
+  ctx.font      = `22px ${_fontFamily}`;
+  ctx.fillStyle = GOLD_MUTED;
   ctx.textAlign = 'center';
-  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 105);
+  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 112);
 
-  // Calendar icon
-  const calIconX = 740, calIconY = 152;
-  drawCalendarIcon(ctx, calIconX, calIconY, darkColor);
+  // ── Date line (largest text on card) ────────────────────────────────────────
+  // Calendar icon on the right, date text right-aligned beside it
+  const calIconX = 740, calIconY = 155;
+  drawCalendarIcon(ctx, calIconX, calIconY, GOLD_TEXT);
 
-  // Date (right-aligned before calendar icon)
-  ctx.font      = `bold 30px ${_fontFamily}`;
-  ctx.fillStyle = darkColor;
+  ctx.font      = `bold 44px ${_fontFamily}`;
+  ctx.fillStyle = GOLD_TEXT;
   ctx.textAlign = 'right';
-  ctx.fillText(ar(String(eventDate ?? '')), calIconX - 8, 175);
+  ctx.fillText(ar(String(eventDate ?? '')), calIconX - 8, 188);
 
-  // Dot
-  ctx.font      = 'bold 30px sans-serif';
-  ctx.fillStyle = mutedRgba;
-  ctx.textAlign = 'center';
-  ctx.fillText('·', CARD_W / 2, 175);
-
-  // Time (left-aligned) + clock icon
-  const timeText   = ar(String(eventTime ?? ''));
-  ctx.font         = `bold 30px ${_fontFamily}`;
-  ctx.fillStyle    = darkColor;
-  ctx.textAlign    = 'left';
-  ctx.fillText(timeText, 60, 175);
-  const timeWidth  = ctx.measureText(timeText).width;
-  drawClockIcon(ctx, 60 + timeWidth + 10, 152, darkColor);
+  // ── Time line (same size as date) ───────────────────────────────────────────
+  // Clock icon on the left, time text left-aligned
+  const timeText = ar(String(eventTime ?? ''));
+  ctx.font       = `bold 44px ${_fontFamily}`;
+  ctx.fillStyle  = GOLD_TEXT;
+  ctx.textAlign  = 'left';
+  ctx.fillText(timeText, 60, 248);
+  const timeWidth = ctx.measureText(timeText).width;
+  drawClockIcon(ctx, 60 + timeWidth + 10, 218, GOLD_TEXT);
 
   // Token code
   const tokenDisplay = token.slice(0, 12).toUpperCase()
     .replace(/(.{4})/g, '$1 ').trim();
   ctx.font      = 'bold 22px monospace';
-  ctx.fillStyle = darkColor;
+  ctx.fillStyle = GOLD_TEXT;
   ctx.textAlign = 'center';
-  ctx.fillText(tokenDisplay, CARD_W / 2, 820);
+  ctx.fillText(tokenDisplay, CARD_W / 2, 850);
 
   // Stub text
-  ctx.font      = `15px ${_fontFamily}`;
-  ctx.fillStyle = mutedRgba;
+  ctx.font      = `20px ${_fontFamily}`;
+  ctx.fillStyle = GOLD_MUTED;
   ctx.textAlign = 'center';
-  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 60);
+  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 50);
 
   const card = canvas.toBuffer('image/png');
   console.log(`[generator] card built label=${label} size=${card.length} bytes`);
