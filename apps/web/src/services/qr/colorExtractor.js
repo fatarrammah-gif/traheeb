@@ -22,9 +22,9 @@ export async function extractDarkestColor(imageBuffer) {
       const r = data[i], g = data[i + 1], b = data[i + 2];
       const brightness = (r + g + b) / 3;
       if (brightness > 220 || brightness < 15) continue;
-      const qr = Math.round(r / 32) * 32;
-      const qg = Math.round(g / 32) * 32;
-      const qb = Math.round(b / 32) * 32;
+      const qr = Math.min(255, Math.round(r / 32) * 32);
+      const qg = Math.min(255, Math.round(g / 32) * 32);
+      const qb = Math.min(255, Math.round(b / 32) * 32);
       const key = `${qr},${qg},${qb}`;
       pixels.set(key, (pixels.get(key) ?? 0) + 1);
     }
@@ -55,7 +55,8 @@ export async function extractDarkestColor(imageBuffer) {
 
     if (!darkestKey) return DARK_FALLBACK;
     const [r, g, b] = darkestKey.split(',').map(Number);
-    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+    const h = v => Math.min(255, v).toString(16).padStart(2, '0');
+    return `#${h(r)}${h(g)}${h(b)}`;
   } catch (err) {
     console.error('[colorExtractor] darkest failed:', err.message);
     return DARK_FALLBACK;
