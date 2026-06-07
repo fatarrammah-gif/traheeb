@@ -1,26 +1,75 @@
 /**
  * QR card generator — ticket-style PNG (800 × 1050 px)
  *
- * Graphics (background, QR gradient, golden border, separator lines, notch circles)
- * are rendered via node-canvas.
- *
- * Text + icons are rendered via an SVG string composited by sharp.
- * sharp → librsvg → Pango handles Arabic shaping/BiDi correctly.
- * Cairo font is embedded as base64 inside the SVG @font-face so librsvg
- * never needs to search the OS font catalog.
+ * Text shaping strategy:
+ *   arabic-reshaper  →  converts Arabic to Unicode Presentation Form codepoints
+ *   bidi-js          →  reorders characters into visual LTR order
+ *   node-canvas      →  renders each glyph directly via FreeType (no Pango needed)
+ *   Noto Naskh Arabic or Noto Sans Arabic (found via fc-match) has full
+ *   Arabic Presentation Forms coverage so FreeType maps each codepoint to
+ *   the correct connected glyph.
  */
-import { createCanvas, loadImage } from 'canvas';
-import QRCode             from 'qrcode';
-import sharp              from 'sharp';
+import { createCanvas, registerFont, loadImage } from 'canvas';
+import QRCode         from 'qrcode';
+import sharp          from 'sharp';
+import arabicReshaper from 'arabic-reshaper';
+import bidiJs         from 'bidi-js';
+import { execSync }   from 'child_process';
 import { existsSync } from 'fs';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
 
-// ── Log available Arabic fonts via fontconfig (runs once at module load) ──────
-try {
-  const { execSync } = await import('child_process');
-  const hits = execSync('fc-list :lang=ar --format="%{family}\\n" 2>/dev/null | sort -u', { encoding: 'utf8' }).trim();
-  console.log('[generator] Arabic fonts on system:\n', hits || '(none found)');
-} catch { /* fontconfig not available */ }
+// ── Arabic text pipeline ──────────────────────────────────────────────────────
+// 1. arabic-reshaper  → each letter replaced with its correct contextual form
+//    (isolated / initial / medial / final) as a Unicode Presentation Form char
+// 2. bidi-js          → reorders chars into visual left-to-right paint order
+// Rendered with ctx.direction = 'ltr' so FreeType paints the pre-ordered glyphs
+// exactly as provided, with no additional BiDi or shaping applied.
+const _bidi = bidiJs();
+
+function ar(text) {
+  const s = String(text ?? '');
+  if (!s.trim()) return s;
+  try {
+    const reshaped = arabicReshaper.convertArabic(s);
+    return _bidi.getReorderedString(reshaped, _bidi.getEmbeddingLevels(reshaped, 'rtl'));
+  } catch (e) {
+    console.warn('[generator] arabic shaping error:', e.message);
+    return s;
+  }
+}
+
+// ── Font registration — find Noto Arabic via fontconfig at startup ─────────────
+let _fontRegistered = false;
+let _fontFamily = 'sans-serif';
+
+function ensureFont() {
+  if (_fontRegistered) return;
+  _fontRegistered = true;
+  const queries = [
+    'Noto Naskh Arabic:lang=ar',
+    'Noto Sans Arabic:lang=ar',
+    ':lang=ar',
+  ];
+  for (const q of queries) {
+    try {
+      const path = execSync(`fc-match "${q}" --format="%{file}"`, { encoding: 'utf8' }).trim();
+      if (path && existsSync(path)) {
+        registerFont(path, { family: 'NotoArabic', weight: 'normal' });
+        // Bold variant
+        try {
+          const bold = execSync(`fc-match "${q}:weight=bold" --format="%{file}"`, { encoding: 'utf8' }).trim();
+          if (bold && existsSync(bold) && bold !== path) {
+            registerFont(bold, { family: 'NotoArabic', weight: 'bold' });
+          }
+        } catch { /* ignore */ }
+        _fontFamily = '"NotoArabic", sans-serif';
+        console.log(`[generator] registered arabic font: ${path}`);
+        return;
+      }
+    } catch { /* try next */ }
+  }
+  console.warn('[generator] no Arabic font found via fc-match — text may render incorrectly');
+}
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
@@ -46,8 +95,9 @@ export async function generateQRCard({
   token, label, eventName, eventDate, eventTime, bgBuffer, logoBuffer,
 }) {
   console.log(`[generator] building card label=${label} token=${token.slice(0, 8)}…`);
+  ensureFont();
 
-  // ── 1. Colors from logo ─────────────────────────────────────────────────────
+  // ── 1. Colors ───────────────────────────────────────────────────────────────
   let darkColor = '#1A0910';
   let lightBg   = '#F5EFF5';
   let stubBg    = '#EDE4ED';
@@ -96,15 +146,17 @@ export async function generateQRCard({
     qrCtx.drawImage(await loadImage(logoBuf), offset, offset);
   }
 
-  // ── 3. Main canvas — background, QR, border, separator lines ───────────────
+  // ── 3. Main canvas ──────────────────────────────────────────────────────────
   const canvas = createCanvas(CARD_W, CARD_H);
   const ctx    = canvas.getContext('2d');
 
+  // Background
   ctx.fillStyle = lightBg;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
   ctx.fillStyle = stubBg;
   ctx.fillRect(0, PERF_Y, CARD_W, CARD_H - PERF_Y);
 
+  // QR
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(QR_LEFT, QR_TOP, QR_SIZE, QR_SIZE);
   ctx.drawImage(qrCanvas, QR_LEFT, QR_TOP);
@@ -139,101 +191,73 @@ export async function generateQRCard({
   ctx.beginPath(); ctx.arc(0,      PERF_Y, 16, -Math.PI / 2, Math.PI / 2);  ctx.fill();
   ctx.beginPath(); ctx.arc(CARD_W, PERF_Y, 16,  Math.PI / 2, -Math.PI / 2); ctx.fill();
 
-  // ── 4. SVG text + icon overlay (sharp → librsvg → Pango → Arabic) ───────────
-  const canvasBuf = canvas.toBuffer('image/png');
+  // ── 4. Text — shaped Arabic rendered via FreeType ───────────────────────────
+  // All Arabic text is pre-shaped (arabic-reshaper + bidi) so ctx.direction='ltr'
+  // is used throughout; FreeType maps each presentation-form codepoint to the
+  // correct glyph without needing Pango/HarfBuzz.
+  ctx.direction = 'ltr';
 
   const ticketLabel = label === 'main'
     ? 'تذكرة دخول: المستضيف الرئيسي'
     : 'تذكرة دخول: مرافق';
 
+  // Ticket label
+  ctx.font      = `bold 26px ${_fontFamily}`;
+  ctx.fillStyle = darkColor;
+  ctx.textAlign = 'center';
+  ctx.fillText(ar(ticketLabel), CARD_W / 2, 65);
+
+  // Event name
+  ctx.font      = `18px ${_fontFamily}`;
+  ctx.fillStyle = mutedRgba;
+  ctx.textAlign = 'center';
+  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 105);
+
+  // Calendar icon
+  const calIconX = 740, calIconY = 152;
+  drawCalendarIcon(ctx, calIconX, calIconY, darkColor);
+
+  // Date (right-aligned before calendar icon)
+  ctx.font      = `bold 30px ${_fontFamily}`;
+  ctx.fillStyle = darkColor;
+  ctx.textAlign = 'right';
+  ctx.fillText(ar(String(eventDate ?? '')), calIconX - 8, 175);
+
+  // Dot
+  ctx.font      = 'bold 30px sans-serif';
+  ctx.fillStyle = mutedRgba;
+  ctx.textAlign = 'center';
+  ctx.fillText('·', CARD_W / 2, 175);
+
+  // Time (left-aligned) + clock icon
+  const timeText   = ar(String(eventTime ?? ''));
+  ctx.font         = `bold 30px ${_fontFamily}`;
+  ctx.fillStyle    = darkColor;
+  ctx.textAlign    = 'left';
+  ctx.fillText(timeText, 60, 175);
+  const timeWidth  = ctx.measureText(timeText).width;
+  drawClockIcon(ctx, 60 + timeWidth + 10, 152, darkColor);
+
+  // Token code
   const tokenDisplay = token.slice(0, 12).toUpperCase()
     .replace(/(.{4})/g, '$1 ').trim();
+  ctx.font      = 'bold 22px monospace';
+  ctx.fillStyle = darkColor;
+  ctx.textAlign = 'center';
+  ctx.fillText(tokenDisplay, CARD_W / 2, 820);
 
-  const svgOverlay = buildTextSVG({
-    ticketLabel,
-    eventName:   String(eventName  ?? ''),
-    eventDate:   String(eventDate  ?? ''),
-    eventTime:   String(eventTime  ?? ''),
-    tokenDisplay,
-    darkColor,
-    dR, dG, dB,
-  });
+  // Stub text
+  ctx.font      = `15px ${_fontFamily}`;
+  ctx.fillStyle = mutedRgba;
+  ctx.textAlign = 'center';
+  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 60);
 
-  const card = await sharp(canvasBuf)
-    .composite([{ input: Buffer.from(svgOverlay), blend: 'over' }])
-    .png()
-    .toBuffer();
-
+  const card = canvas.toBuffer('image/png');
   console.log(`[generator] card built label=${label} size=${card.length} bytes`);
   return card;
 }
 
-// ── SVG text + icon overlay ────────────────────────────────────────────────────
-
-function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime,
-                         tokenDisplay, darkColor, dR, dG, dB }) {
-  const muted = `rgba(${dR},${dG},${dB},0.5)`;
-  // Use system Noto Sans Arabic (installed via fonts-noto-extra apt package).
-  // librsvg does NOT support @font-face data-URIs, so we rely on fontconfig.
-  const AR    = `font-family="Noto Sans Arabic, Noto Naskh Arabic, Arabic Typesetting, serif"`;
-
-  const calIcon = `
-    <g stroke="${darkColor}" fill="none" stroke-width="1.8"
-       stroke-linecap="round" stroke-linejoin="round">
-      <rect x="740" y="155" width="22" height="20" rx="4"/>
-      <line x1="740" y1="161" x2="762" y2="161"/>
-      <line x1="747" y1="152" x2="747" y2="157"/>
-      <line x1="755" y1="152" x2="755" y2="157"/>
-    </g>`;
-
-  const clkIcon = `
-    <g stroke="${darkColor}" fill="none" stroke-width="1.8" stroke-linecap="round">
-      <circle cx="211" cy="163" r="11"/>
-      <line x1="211" y1="163" x2="211" y2="157"/>
-      <line x1="211" y1="163" x2="216" y2="163"/>
-    </g>`;
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
-
-  <!-- Ticket label -->
-  <text ${AR} x="${CARD_W / 2}" y="65"
-        text-anchor="middle" direction="rtl" unicode-bidi="embed"
-        font-size="26" font-weight="bold" fill="${darkColor}">${escXml(ticketLabel)}</text>
-
-  <!-- Event name -->
-  <text ${AR} x="${CARD_W / 2}" y="105"
-        text-anchor="middle" direction="rtl" unicode-bidi="embed"
-        font-size="18" fill="${muted}">${escXml(eventName)}</text>
-
-  <!-- Calendar icon + date -->
-  ${calIcon}
-  <text ${AR} x="732" y="175"
-        text-anchor="end" direction="rtl" unicode-bidi="embed"
-        font-size="30" font-weight="bold" fill="${darkColor}">${escXml(eventDate)}</text>
-
-  <!-- Dot -->
-  <text x="${CARD_W / 2}" y="175"
-        text-anchor="middle" font-size="30" font-weight="bold" fill="${muted}">·</text>
-
-  <!-- Time + clock icon -->
-  <text ${AR} x="60" y="175"
-        text-anchor="start" font-size="30" font-weight="bold" fill="${darkColor}">${escXml(eventTime)}</text>
-  ${clkIcon}
-
-  <!-- Token -->
-  <text font-family="monospace" x="${CARD_W / 2}" y="820"
-        text-anchor="middle" font-size="22" font-weight="bold"
-        fill="${darkColor}">${escXml(tokenDisplay)}</text>
-
-  <!-- Stub -->
-  <text ${AR} x="${CARD_W / 2}" y="${PERF_Y + 60}"
-        text-anchor="middle" direction="rtl" unicode-bidi="embed"
-        font-size="15" fill="${muted}">الرجاء إبراز البطاقة عند الدخول</text>
-
-</svg>`;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Drawing helpers ────────────────────────────────────────────────────────────
 
 function roundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -249,12 +273,24 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function escXml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function drawCalendarIcon(ctx, x, y, color) {
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  roundedRect(ctx, x, y + 3, 22, 20, 4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x,      y + 9); ctx.lineTo(x + 22, y + 9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 7,  y);     ctx.lineTo(x + 7,  y + 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 15, y);     ctx.lineTo(x + 15, y + 5); ctx.stroke();
+  ctx.restore();
+}
+
+function drawClockIcon(ctx, x, y, color) {
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(x + 11, y + 11, 11, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 11, y + 11); ctx.lineTo(x + 11, y + 5);  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 11, y + 11); ctx.lineTo(x + 16, y + 11); ctx.stroke();
+  ctx.restore();
 }
 
 function hexToRgb(hex) {
