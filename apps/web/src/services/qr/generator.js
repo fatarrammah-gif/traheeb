@@ -15,44 +15,32 @@
  *   الرجاء إبراز البطاقة عند الدخول
  */
 import { createCanvas, registerFont, loadImage } from 'canvas';
-import QRCode         from 'qrcode';
-import sharp          from 'sharp';
-import arabicReshaper from 'arabic-reshaper';
-import bidiJs         from 'bidi-js';
-import { existsSync } from 'fs';
+import QRCode            from 'qrcode';
+import sharp             from 'sharp';
+import { execSync }      from 'child_process';
+import { existsSync }    from 'fs';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
 
-// ── Arabic text pipeline ──────────────────────────────────────────────────────
-const bidi = bidiJs();
-function ar(text) {
-  const reshaped = arabicReshaper.convertArabic(String(text ?? ''));
-  return bidi.getReorderedString(reshaped, bidi.getEmbeddingLevels(reshaped, 'rtl'));
-}
+// ── Arabic text ───────────────────────────────────────────────────────────────
+// Pango (used by node-canvas via Cairo on Linux) handles Arabic shaping and
+// BiDi automatically. Pass raw Unicode text + set ctx.direction = 'rtl'.
+const ar = (text) => String(text ?? '');
 
-// Arabic font family — fontconfig resolves these from the system font catalog
-// (fonts-noto-extra installs "Noto Sans Arabic"; fonts-arabic installs KACST fonts)
-const ARABIC_FONT = '"Noto Sans Arabic", "Noto Naskh Arabic", "KacstOffice", sans-serif';
-
-// Optional: register a font file if found, for guaranteed rendering
-const FONT_PATHS = [
-  '/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf',
-  '/usr/share/fonts/opentype/noto/NotoSansArabic-Regular.ttf',
-  '/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf',
-];
-const FONT_BOLD_PATHS = [
-  '/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf',
-  '/usr/share/fonts/opentype/noto/NotoSansArabic-Bold.ttf',
-];
-
+// ── Font: find Noto Sans Arabic via fontconfig at runtime ─────────────────────
 let _fontsReady = false;
 function ensureFonts() {
   if (_fontsReady) return;
-  const reg  = FONT_PATHS.find(existsSync);
-  const bold = FONT_BOLD_PATHS.find(existsSync);
-  if (reg)  registerFont(reg,  { family: 'NotoArabic', weight: 'normal' });
-  if (bold) registerFont(bold, { family: 'NotoArabic', weight: 'bold' });
-  console.log(`[generator] fonts registered: regular=${reg ?? 'via fontconfig'} bold=${bold ?? 'via fontconfig'}`);
   _fontsReady = true;
+  try {
+    // fc-match finds the best Arabic font installed on the system
+    const reg  = execSync('fc-match "Noto Sans Arabic:lang=ar" --format="%{file}"',  { encoding: 'utf8' }).trim();
+    const bold = execSync('fc-match "Noto Sans Arabic:lang=ar:weight=bold" --format="%{file}"', { encoding: 'utf8' }).trim();
+    if (reg  && existsSync(reg))  registerFont(reg,  { family: 'NotoArabic', weight: 'normal' });
+    if (bold && existsSync(bold)) registerFont(bold, { family: 'NotoArabic', weight: 'bold' });
+    console.log(`[generator] font: ${reg}`);
+  } catch (err) {
+    console.warn('[generator] fc-match failed, using system fallback:', err.message);
+  }
 }
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
@@ -181,12 +169,14 @@ export async function generateQRCard({
   ctx.font      = `bold 26px ${AR_FONT}`;
   ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
+  ctx.direction = 'rtl';
   ctx.fillText(ar(ticketLabel), CARD_W / 2, 65);
 
   // ── 6. Text: event name ─────────────────────────────────────────────────────
   ctx.font      = `18px ${AR_FONT}`;
   ctx.fillStyle = mutedRgba;
   ctx.textAlign = 'center';
+  ctx.direction = 'rtl';
   ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 105);
 
   // ── 7. Dashed separator line ─────────────────────────────────────────────────
@@ -207,6 +197,7 @@ export async function generateQRCard({
   ctx.font      = `bold 30px ${AR_FONT}`;
   ctx.fillStyle = darkColor;
   ctx.textAlign = 'right';
+  ctx.direction = 'rtl';
   ctx.fillText(ar(String(eventDate ?? '')), calIconX - 8, 175);
 
   // ── 9. Dot separator (center) ────────────────────────────────────────────────
@@ -218,6 +209,7 @@ export async function generateQRCard({
   // ── 10. Time block (left side): [time text] [clock icon] ────────────────────
   const timeText    = ar(String(eventTime ?? ''));
   ctx.font          = `bold 30px ${AR_FONT}`;
+  ctx.direction     = 'ltr';
   const timeMetrics = ctx.measureText(timeText);
   const timeStartX  = 60;
   ctx.fillStyle     = darkColor;
@@ -261,6 +253,7 @@ export async function generateQRCard({
   ctx.font      = `15px ${AR_FONT}`;
   ctx.fillStyle = mutedRgba;
   ctx.textAlign = 'center';
+  ctx.direction = 'rtl';
   ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 60);
 
   const card = canvas.toBuffer('image/png');
