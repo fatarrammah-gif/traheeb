@@ -150,13 +150,13 @@ export async function generateQRCard({ token, label, eventName, eventDate, event
 
   <!-- Ticket type label -->
   <text x="${CARD_W / 2}" y="68"
-        font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700"
-        fill="${darkColor}" text-anchor="middle">${esc(ticketLabel)}</text>
+        font-family="Noto Sans Arabic,Noto Sans,DejaVu Sans,sans-serif" font-size="26" font-weight="700"
+        fill="${darkColor}" text-anchor="middle" direction="rtl">${esc(ticketLabel)}</text>
 
   <!-- Event name -->
   <text x="${CARD_W / 2}" y="108"
-        font-family="Arial,Helvetica,sans-serif" font-size="18"
-        fill="${mutedColor}" text-anchor="middle">${esc(eventName)}</text>
+        font-family="Noto Sans Arabic,Noto Sans,DejaVu Sans,sans-serif" font-size="18"
+        fill="${mutedColor}" text-anchor="middle" direction="rtl">${esc(eventName)}</text>
 
   <!-- Decorative separator line -->
   <line x1="80" y1="128" x2="${CARD_W - 80}" y2="128"
@@ -171,12 +171,12 @@ export async function generateQRCard({ token, label, eventName, eventDate, event
     <line x1="15" y1="0"  x2="15" y2="5"/>
   </g>
   <text x="132" y="178"
-        font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700"
+        font-family="Noto Sans Arabic,Noto Sans,DejaVu Sans,sans-serif" font-size="30" font-weight="700"
         fill="${darkColor}" text-anchor="start">${esc(eventDate)}</text>
 
   <!-- Dot separator -->
   <text x="${CARD_W / 2}" y="178"
-        font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700"
+        font-family="Noto Sans Arabic,Noto Sans,DejaVu Sans,sans-serif" font-size="30" font-weight="700"
         fill="${mutedColor}" text-anchor="middle">·</text>
 
   <!-- Clock icon (time side) -->
@@ -187,7 +187,7 @@ export async function generateQRCard({ token, label, eventName, eventDate, event
     <line x1="11" y1="11" x2="16" y2="11"/>
   </g>
   <text x="${CARD_W / 2 + 70}" y="178"
-        font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="700"
+        font-family="Noto Sans Arabic,Noto Sans,DejaVu Sans,sans-serif" font-size="30" font-weight="700"
         fill="${darkColor}" text-anchor="start">${esc(eventTime)}</text>
 
   <!-- Token code -->
@@ -205,8 +205,8 @@ export async function generateQRCard({ token, label, eventName, eventDate, event
 
   <!-- Stub hint text -->
   <text x="${CARD_W / 2}" y="${PERF_Y + 60}"
-        font-family="Arial,Helvetica,sans-serif" font-size="15"
-        fill="${mutedColor}" text-anchor="middle">الرجاء إبراز البطاقة عند الدخول</text>
+        font-family="Noto Sans Arabic,Noto Sans,DejaVu Sans,sans-serif" font-size="15"
+        fill="${mutedColor}" text-anchor="middle" direction="rtl">الرجاء إبراز البطاقة عند الدخول</text>
 </svg>`;
 
   // ── 6. Compose ─────────────────────────────────────────────────────────────
