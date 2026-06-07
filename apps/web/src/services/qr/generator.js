@@ -35,6 +35,14 @@ function ar(text) {
   }
 }
 
+// Only reshape if the string actually contains Arabic characters.
+// Purely Latin / numeric strings (e.g. "7:00 AM") are returned as-is.
+function arSmart(text) {
+  const s = String(text ?? '');
+  const hasArabic = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(s);
+  return hasArabic ? ar(s) : s;
+}
+
 // ── Fonts committed to repo — zero system dependencies ───────────────────────
 // Amiri: classical Arabic typeface, full Presentation Forms → body/label text
 // Cairo: modern geometric Arabic typeface → date/time (distinct style)
@@ -214,28 +222,38 @@ export async function generateQRCard({
   ctx.textAlign = 'center';
   ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 110);
 
-  // ── Date + Time — bold Cairo, black, centered between separator and QR ───────
-  // Available vertical space: separator y=135 to QR_TOP=360 → 225px
-  // Two lines @ ~68px apart → block center at 135+112=247
-  // Date baseline: 247-34=213  Time baseline: 213+68=281
-  const DATE_Y = 213, TIME_Y = 281;
-  const ICON_SZ = 36;
+  // ── Date + Time — bold Cairo, black ─────────────────────────────────────────
+  // Layout: both lines right-aligned to the same edge, block centered on card.
+  // Icon sits immediately right of the text with a 6px gap.
+  // Vertical: centered in space between separator (y=135) and QR top (y=360).
+  const DATE_Y  = 213, TIME_Y = 281;
+  const ICON_SZ = 36, ICON_GAP = 6;
+  const DT_FONT = `bold 52px ${_dateTimeFontFamily}`;
 
-  const dateStr = ar(String(eventDate ?? ''));
-  ctx.font      = `bold 52px ${_dateTimeFontFamily}`;
-  ctx.fillStyle = '#000000';
-  ctx.textAlign = 'center';
+  ctx.font = DT_FONT;
+
+  const dateStr = arSmart(String(eventDate ?? ''));
+  const timeStr = arSmart(String(eventTime ?? ''));
   const dateW   = ctx.measureText(dateStr).width;
-  drawCalendarIcon(ctx, CARD_W / 2 + dateW / 2 + 8, DATE_Y - ICON_SZ + 4, GOLD_TEXT, ICON_SZ);
-  ctx.fillText(dateStr, CARD_W / 2, DATE_Y);
+  const timeW   = ctx.measureText(timeStr).width;
 
-  const timeStr  = ar(String(eventTime ?? ''));
-  ctx.font       = `bold 52px ${_dateTimeFontFamily}`;
-  ctx.fillStyle  = '#000000';
-  ctx.textAlign  = 'center';
-  const timeW    = ctx.measureText(timeStr).width;
-  drawClockIcon(ctx, CARD_W / 2 + timeW / 2 + 8, TIME_Y - ICON_SZ + 4, GOLD_TEXT, ICON_SZ);
-  ctx.fillText(timeStr, CARD_W / 2, TIME_Y);
+  // Block width = widest text + gap + icon; centered on card
+  const blockTextW = Math.max(dateW, timeW);
+  const blockW     = blockTextW + ICON_GAP + ICON_SZ;
+  const blockLeft  = Math.round(CARD_W / 2 - blockW / 2);
+  const textRight  = blockLeft + blockTextW;   // right edge both texts align to
+  const iconLeft   = textRight + ICON_GAP;
+
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'right';
+
+  // Date line
+  drawCalendarIcon(ctx, iconLeft, DATE_Y - 38, GOLD_TEXT, ICON_SZ);
+  ctx.fillText(dateStr, textRight, DATE_Y);
+
+  // Time line
+  drawClockIcon(ctx, iconLeft, TIME_Y - 38, GOLD_TEXT, ICON_SZ);
+  ctx.fillText(timeStr, textRight, TIME_Y);
 
   // Token code
   const tokenDisplay = token.slice(0, 12).toUpperCase()
