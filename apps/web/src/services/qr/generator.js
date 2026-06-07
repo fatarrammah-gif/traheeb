@@ -14,16 +14,16 @@ import QRCode         from 'qrcode';
 import sharp          from 'sharp';
 import arabicReshaper from 'arabic-reshaper';
 import bidiJs         from 'bidi-js';
-import { execSync }   from 'child_process';
 import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
 
 // ── Arabic text pipeline ──────────────────────────────────────────────────────
-// 1. arabic-reshaper  → each letter replaced with its correct contextual form
-//    (isolated / initial / medial / final) as a Unicode Presentation Form char
-// 2. bidi-js          → reorders chars into visual left-to-right paint order
-// Rendered with ctx.direction = 'ltr' so FreeType paints the pre-ordered glyphs
-// exactly as provided, with no additional BiDi or shaping applied.
+// 1. arabic-reshaper  → contextual Unicode Presentation Form codepoints
+// 2. bidi-js          → visual left-to-right paint order
+// 3. ctx.direction='ltr' + Amiri font (has full Presentation Forms coverage)
+//    → FreeType maps each codepoint directly to the correct Arabic glyph
 const _bidi = bidiJs();
 
 function ar(text) {
@@ -38,37 +38,33 @@ function ar(text) {
   }
 }
 
-// ── Font registration — find Noto Arabic via fontconfig at startup ─────────────
+// ── Font: Amiri committed to repo — zero system dependencies ─────────────────
+// Amiri is a classical Arabic typeface with complete Unicode Presentation Forms
+// coverage, making it ideal for use with arabic-reshaper + FreeType.
 let _fontRegistered = false;
-let _fontFamily = 'sans-serif';
+const _fontFamily = '"Amiri", serif';
 
 function ensureFont() {
   if (_fontRegistered) return;
   _fontRegistered = true;
-  const queries = [
-    'Noto Naskh Arabic:lang=ar',
-    'Noto Sans Arabic:lang=ar',
-    ':lang=ar',
-  ];
-  for (const q of queries) {
-    try {
-      const path = execSync(`fc-match "${q}" --format="%{file}"`, { encoding: 'utf8' }).trim();
-      if (path && existsSync(path)) {
-        registerFont(path, { family: 'NotoArabic', weight: 'normal' });
-        // Bold variant
-        try {
-          const bold = execSync(`fc-match "${q}:weight=bold" --format="%{file}"`, { encoding: 'utf8' }).trim();
-          if (bold && existsSync(bold) && bold !== path) {
-            registerFont(bold, { family: 'NotoArabic', weight: 'bold' });
-          }
-        } catch { /* ignore */ }
-        _fontFamily = '"NotoArabic", sans-serif';
-        console.log(`[generator] registered arabic font: ${path}`);
-        return;
-      }
-    } catch { /* try next */ }
-  }
-  console.warn('[generator] no Arabic font found via fc-match — text may render incorrectly');
+
+  // Resolve font dir relative to this source file (works in dev and production)
+  const base = join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts');
+  const reg  = join(base, 'Amiri-Regular.ttf');
+  const bold = join(base, 'Amiri-Bold.ttf');
+
+  // Fallback: try process.cwd()-relative path (Railway production)
+  const cwdBase = join(process.cwd(), 'src/assets/fonts');
+  const regCwd  = join(cwdBase, 'Amiri-Regular.ttf');
+  const boldCwd = join(cwdBase, 'Amiri-Bold.ttf');
+
+  const regPath  = existsSync(reg)  ? reg  : existsSync(regCwd)  ? regCwd  : null;
+  const boldPath = existsSync(bold) ? bold : existsSync(boldCwd) ? boldCwd : null;
+
+  if (regPath)  registerFont(regPath,  { family: 'Amiri', weight: 'normal' });
+  if (boldPath) registerFont(boldPath, { family: 'Amiri', weight: 'bold'   });
+
+  console.log(`[generator] Amiri font: regular=${regPath ?? 'NOT FOUND'} bold=${boldPath ?? 'NOT FOUND'}`);
 }
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
