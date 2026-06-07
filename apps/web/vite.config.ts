@@ -93,7 +93,7 @@ export default defineConfig({
   ssr: {
     // sharp is a native Node.js module — Vite cannot bundle it,
     // so we mark it (and its dependents) as external for the server build.
-    external: ['sharp', 'qrcode'],
+    external: ['sharp', 'qrcode', 'canvas', 'arabic-reshaper', 'bidi-js'],
     noExternal: [],
   },
   build: {
