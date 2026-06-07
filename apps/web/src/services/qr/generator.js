@@ -20,9 +20,16 @@
  *   الرجاء إبراز البطاقة عند الدخول
  */
 import { createCanvas, loadImage } from 'canvas';
-import QRCode  from 'qrcode';
-import sharp   from 'sharp';
+import QRCode      from 'qrcode';
+import sharp       from 'sharp';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
+
+// ── Embed Arabic font as base64 so librsvg never needs to search OS fonts ─────
+const _fontPath = join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts/Cairo.ttf');
+const _fontB64  = readFileSync(_fontPath).toString('base64');
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
@@ -201,7 +208,7 @@ export async function generateQRCard({
 
 function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime, tokenDisplay, darkColor, dR, dG, dB }) {
   const muted = `rgba(${dR},${dG},${dB},0.5)`;
-  const AR = 'font-family="Noto Sans Arabic, Noto Naskh Arabic, serif"';
+  const AR = 'font-family="Cairo, sans-serif"';
 
   // Calendar icon (SVG paths, mirroring the canvas drawCalendarIcon at x=740,y=152)
   const calIcon = `
@@ -221,6 +228,15 @@ function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime, tokenDispl
     </g>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
+  <defs>
+    <style>
+      @font-face {
+        font-family: 'Cairo';
+        src: url('data:font/truetype;base64,${_fontB64}') format('truetype');
+        font-weight: 100 900;
+      }
+    </style>
+  </defs>
 
   <!-- Ticket type label -->
   <text ${AR} x="${CARD_W / 2}" y="65"
