@@ -1,12 +1,17 @@
 /**
  * QR card generator — ticket-style PNG (800 × 1050 px)
- * Uses node-canvas for rendering so Arabic text is shaped and joined correctly.
+ *
+ * Graphics (background, QR gradient, golden border, separator lines, notch circles)
+ * are rendered via node-canvas.
+ *
+ * Text + icons are rendered via an SVG overlay composited by sharp.
+ * sharp → librsvg → Pango handles Arabic shaping/BiDi correctly.
  *
  * Layout (RTL, top → bottom):
- *   تذكرة دخول: المستضيف الرئيسي   (medium, dark)
- *   [event name]                     (small, muted)
- *   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   (dashed separator)
- *   [date] 🗓   ·   🕐 [time]       (large, icons on the RIGHT of each text)
+ *   تذكرة دخول: المستضيف الرئيسي   (bold 26px, dark)
+ *   [event name]                     (18px, muted)
+ *   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   (dashed separator — canvas)
+ *   🗓 [date]  ·  [time] 🕐         (bold 30px with SVG icons)
  *   ┌─────── golden border ────────┐
  *   │   QR code (black→logo grad)  │
  *   └──────────────────────────────┘
@@ -14,34 +19,10 @@
  *   - - - - - - - - (perforation) -
  *   الرجاء إبراز البطاقة عند الدخول
  */
-import { createCanvas, registerFont, loadImage } from 'canvas';
-import QRCode            from 'qrcode';
-import sharp             from 'sharp';
-import { execSync }      from 'child_process';
-import { existsSync }    from 'fs';
+import { createCanvas, loadImage } from 'canvas';
+import QRCode  from 'qrcode';
+import sharp   from 'sharp';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
-
-// ── Arabic text ───────────────────────────────────────────────────────────────
-// Pango (used by node-canvas via Cairo on Linux) handles Arabic shaping and
-// BiDi automatically. Pass raw Unicode text + set ctx.direction = 'rtl'.
-const ar = (text) => String(text ?? '');
-
-// ── Font: find Noto Sans Arabic via fontconfig at runtime ─────────────────────
-let _fontsReady = false;
-function ensureFonts() {
-  if (_fontsReady) return;
-  _fontsReady = true;
-  try {
-    // fc-match finds the best Arabic font installed on the system
-    const reg  = execSync('fc-match "Noto Sans Arabic:lang=ar" --format="%{file}"',  { encoding: 'utf8' }).trim();
-    const bold = execSync('fc-match "Noto Sans Arabic:lang=ar:weight=bold" --format="%{file}"', { encoding: 'utf8' }).trim();
-    if (reg  && existsSync(reg))  registerFont(reg,  { family: 'NotoArabic', weight: 'normal' });
-    if (bold && existsSync(bold)) registerFont(bold, { family: 'NotoArabic', weight: 'bold' });
-    console.log(`[generator] font: ${reg}`);
-  } catch (err) {
-    console.warn('[generator] fc-match failed, using system fallback:', err.message);
-  }
-}
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
@@ -67,7 +48,6 @@ export async function generateQRCard({
   token, label, eventName, eventDate, eventTime, bgBuffer, logoBuffer,
 }) {
   console.log(`[generator] building card label=${label} token=${token.slice(0, 8)}…`);
-  ensureFonts();
 
   // ── 1. Colors ───────────────────────────────────────────────────────────────
   let darkColor = '#1A0910';
@@ -100,16 +80,13 @@ export async function generateQRCard({
   // Build gradient QR on its own canvas
   const qrCanvas = createCanvas(QR_SIZE, QR_SIZE);
   const qrCtx   = qrCanvas.getContext('2d');
-  // White base
   qrCtx.fillStyle = '#FFFFFF';
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
-  // Draw gradient
   const qrGrad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
   qrGrad.addColorStop(0, '#000000');
   qrGrad.addColorStop(1, darkColor);
   qrCtx.fillStyle = qrGrad;
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
-  // Mask to QR shape
   qrCtx.globalCompositeOperation = 'destination-in';
   qrCtx.drawImage(await loadImage(qrTransparentBuf), 0, 0);
   qrCtx.globalCompositeOperation = 'source-over';
@@ -127,7 +104,7 @@ export async function generateQRCard({
     qrCtx.drawImage(await loadImage(logoBuf), offset, offset);
   }
 
-  // ── 3. Main canvas ──────────────────────────────────────────────────────────
+  // ── 3. Main canvas — background, QR, border, separator, perforation ─────────
   const canvas = createCanvas(CARD_W, CARD_H);
   const ctx    = canvas.getContext('2d');
 
@@ -138,7 +115,7 @@ export async function generateQRCard({
   ctx.fillStyle = stubBg;
   ctx.fillRect(0, PERF_Y, CARD_W, CARD_H - PERF_Y);
 
-  // Draw QR on white background (avoids transparency bleed)
+  // Draw QR on white background
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(QR_LEFT, QR_TOP, QR_SIZE, QR_SIZE);
   ctx.drawImage(qrCanvas, QR_LEFT, QR_TOP);
@@ -159,27 +136,7 @@ export async function generateQRCard({
   roundedRect(ctx, bx, by, bw, bh, 16);
   ctx.stroke();
 
-  // ── 5. Text: ticket type label ──────────────────────────────────────────────
-  const ticketLabel = label === 'main'
-    ? 'تذكرة دخول: المستضيف الرئيسي'
-    : 'تذكرة دخول: مرافق';
-
-  const AR_FONT = '"NotoArabic", "Noto Sans Arabic", "Noto Naskh Arabic", sans-serif';
-
-  ctx.font      = `bold 26px ${AR_FONT}`;
-  ctx.fillStyle = darkColor;
-  ctx.textAlign = 'center';
-  ctx.direction = 'rtl';
-  ctx.fillText(ar(ticketLabel), CARD_W / 2, 65);
-
-  // ── 6. Text: event name ─────────────────────────────────────────────────────
-  ctx.font      = `18px ${AR_FONT}`;
-  ctx.fillStyle = mutedRgba;
-  ctx.textAlign = 'center';
-  ctx.direction = 'rtl';
-  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 105);
-
-  // ── 7. Dashed separator line ─────────────────────────────────────────────────
+  // ── 5. Dashed separator line ─────────────────────────────────────────────────
   ctx.save();
   ctx.strokeStyle = mutedRgba;
   ctx.lineWidth   = 1;
@@ -190,46 +147,7 @@ export async function generateQRCard({
   ctx.stroke();
   ctx.restore();
 
-  // ── 8. Date block (right side): [date text] [calendar icon] ─────────────────
-  const calIconX = 740, calIconY = 152;
-  drawCalendarIcon(ctx, calIconX, calIconY, darkColor);
-
-  ctx.font      = `bold 30px ${AR_FONT}`;
-  ctx.fillStyle = darkColor;
-  ctx.textAlign = 'right';
-  ctx.direction = 'rtl';
-  ctx.fillText(ar(String(eventDate ?? '')), calIconX - 8, 175);
-
-  // ── 9. Dot separator (center) ────────────────────────────────────────────────
-  ctx.font      = 'bold 30px sans-serif';
-  ctx.fillStyle = mutedRgba;
-  ctx.textAlign = 'center';
-  ctx.fillText('·', CARD_W / 2, 175);
-
-  // ── 10. Time block (left side): [time text] [clock icon] ────────────────────
-  const timeText    = ar(String(eventTime ?? ''));
-  ctx.font          = `bold 30px ${AR_FONT}`;
-  ctx.direction     = 'ltr';
-  const timeMetrics = ctx.measureText(timeText);
-  const timeStartX  = 60;
-  ctx.fillStyle     = darkColor;
-  ctx.textAlign     = 'left';
-  ctx.fillText(timeText, timeStartX, 175);
-
-  const clkIconX = timeStartX + timeMetrics.width + 10;
-  const clkIconY = 152;
-  drawClockIcon(ctx, clkIconX, clkIconY, darkColor);
-
-  // ── 11. Token code ───────────────────────────────────────────────────────────
-  const tokenDisplay = token.slice(0, 12).toUpperCase()
-    .replace(/(.{4})/g, '$1 ').trim();
-
-  ctx.font      = 'bold 22px monospace';
-  ctx.fillStyle = darkColor;
-  ctx.textAlign = 'center';
-  ctx.fillText(tokenDisplay, CARD_W / 2, 820);
-
-  // ── 12. Perforated line ──────────────────────────────────────────────────────
+  // ── 6. Perforated line ───────────────────────────────────────────────────────
   ctx.save();
   ctx.strokeStyle = mutedRgba;
   ctx.lineWidth   = 1.2;
@@ -249,16 +167,100 @@ export async function generateQRCard({
   ctx.arc(CARD_W, PERF_Y, 16, Math.PI / 2, -Math.PI / 2);
   ctx.fill();
 
-  // ── 13. Stub text ─────────────────────────────────────────────────────────────
-  ctx.font      = `15px ${AR_FONT}`;
-  ctx.fillStyle = mutedRgba;
-  ctx.textAlign = 'center';
-  ctx.direction = 'rtl';
-  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 60);
+  // ── 7. Export canvas, then overlay text via SVG (librsvg → Pango → Arabic) ───
+  const canvasBuf = canvas.toBuffer('image/png');
 
-  const card = canvas.toBuffer('image/png');
+  const ticketLabel = label === 'main'
+    ? 'تذكرة دخول: المستضيف الرئيسي'
+    : 'تذكرة دخول: مرافق';
+
+  const tokenDisplay = token.slice(0, 12).toUpperCase()
+    .replace(/(.{4})/g, '$1 ').trim();
+
+  const svgOverlay = buildTextSVG({
+    ticketLabel,
+    eventName:  String(eventName  ?? ''),
+    eventDate:  String(eventDate  ?? ''),
+    eventTime:  String(eventTime  ?? ''),
+    tokenDisplay,
+    darkColor,
+    dR, dG, dB,
+  });
+
+  const card = await sharp(canvasBuf)
+    .composite([{ input: Buffer.from(svgOverlay), blend: 'over' }])
+    .png()
+    .toBuffer();
+
   console.log(`[generator] card built label=${label} size=${card.length} bytes`);
   return card;
+}
+
+// ── SVG text + icon overlay ────────────────────────────────────────────────────
+// Rendered by sharp → librsvg → Pango, which handles Arabic shaping/BiDi correctly.
+
+function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime, tokenDisplay, darkColor, dR, dG, dB }) {
+  const muted = `rgba(${dR},${dG},${dB},0.5)`;
+  const AR = 'font-family="Noto Sans Arabic, Noto Naskh Arabic, serif"';
+
+  // Calendar icon (SVG paths, mirroring the canvas drawCalendarIcon at x=740,y=152)
+  const calIcon = `
+    <g stroke="${darkColor}" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="740" y="155" width="22" height="20" rx="4"/>
+      <line x1="740" y1="161" x2="762" y2="161"/>
+      <line x1="747" y1="152" x2="747" y2="157"/>
+      <line x1="755" y1="152" x2="755" y2="157"/>
+    </g>`;
+
+  // Clock icon (fixed at x=200,y=152 — time text occupies x=60..~185)
+  const clkIcon = `
+    <g stroke="${darkColor}" fill="none" stroke-width="1.8" stroke-linecap="round">
+      <circle cx="211" cy="163" r="11"/>
+      <line x1="211" y1="163" x2="211" y2="157"/>
+      <line x1="211" y1="163" x2="216" y2="163"/>
+    </g>`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
+
+  <!-- Ticket type label -->
+  <text ${AR} x="${CARD_W / 2}" y="65"
+        text-anchor="middle" direction="rtl" unicode-bidi="embed"
+        font-size="26" font-weight="bold" fill="${darkColor}">${escXml(ticketLabel)}</text>
+
+  <!-- Event name -->
+  <text ${AR} x="${CARD_W / 2}" y="105"
+        text-anchor="middle" direction="rtl" unicode-bidi="embed"
+        font-size="18" fill="${muted}">${escXml(eventName)}</text>
+
+  <!-- Calendar icon -->
+  ${calIcon}
+
+  <!-- Date (right of calendar icon, right-aligned) -->
+  <text ${AR} x="732" y="175"
+        text-anchor="end" direction="rtl" unicode-bidi="embed"
+        font-size="30" font-weight="bold" fill="${darkColor}">${escXml(eventDate)}</text>
+
+  <!-- Dot separator -->
+  <text x="${CARD_W / 2}" y="175"
+        text-anchor="middle" font-size="30" font-weight="bold" fill="${muted}">·</text>
+
+  <!-- Time (left-aligned, before clock icon) -->
+  <text ${AR} x="60" y="175"
+        text-anchor="start" font-size="30" font-weight="bold" fill="${darkColor}">${escXml(eventTime)}</text>
+
+  <!-- Clock icon -->
+  ${clkIcon}
+
+  <!-- Token code -->
+  <text font-family="monospace" x="${CARD_W / 2}" y="820"
+        text-anchor="middle" font-size="22" font-weight="bold" fill="${darkColor}">${escXml(tokenDisplay)}</text>
+
+  <!-- Stub text -->
+  <text ${AR} x="${CARD_W / 2}" y="${PERF_Y + 60}"
+        text-anchor="middle" direction="rtl" unicode-bidi="embed"
+        font-size="15" fill="${muted}">الرجاء إبراز البطاقة عند الدخول</text>
+
+</svg>`;
 }
 
 // ── Drawing helpers ────────────────────────────────────────────────────────────
@@ -277,35 +279,13 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/** Calendar icon (22×23 px) at top-left corner (x, y) */
-function drawCalendarIcon(ctx, x, y, color) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth   = 1.8;
-  ctx.lineCap     = 'round';
-  ctx.lineJoin    = 'round';
-  // Outer box
-  roundedRect(ctx, x, y + 3, 22, 20, 4);
-  ctx.stroke();
-  // Header line
-  ctx.beginPath(); ctx.moveTo(x, y + 9); ctx.lineTo(x + 22, y + 9); ctx.stroke();
-  // Ring left
-  ctx.beginPath(); ctx.moveTo(x + 7,  y); ctx.lineTo(x + 7,  y + 5); ctx.stroke();
-  // Ring right
-  ctx.beginPath(); ctx.moveTo(x + 15, y); ctx.lineTo(x + 15, y + 5); ctx.stroke();
-  ctx.restore();
-}
-
-/** Clock icon (22×22 px) centered at (x+11, y+11) */
-function drawClockIcon(ctx, x, y, color) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth   = 1.8;
-  ctx.lineCap     = 'round';
-  ctx.beginPath(); ctx.arc(x + 11, y + 11, 11, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 11, y + 11); ctx.lineTo(x + 11, y + 5);  ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 11, y + 11); ctx.lineTo(x + 16, y + 11); ctx.stroke();
-  ctx.restore();
+/** Escape text for safe embedding in SVG. */
+function escXml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
