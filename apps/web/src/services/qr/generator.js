@@ -69,13 +69,14 @@ const CARD_W     = 800;
 const CARD_H     = 1050;
 const QR_SIZE    = 440;
 const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);
-const QR_TOP     = 300;
+const QR_TOP     = 335;   // lower QR → more space for enlarged header
 const BORDER_PAD = 12;
-const PERF_Y     = 900;
+const PERF_Y     = 940;   // smaller bottom stub section
 
 // ── Gold palette ──────────────────────────────────────────────────────────────
-const GOLD_TEXT  = '#8B6914';
-const GOLD_MUTED = 'rgba(139, 105, 20, 0.6)';
+const GOLD_TEXT    = '#8B6914';            // icons only
+const GOLD_LINE    = '#DAA520';            // dotted lines (full gold)
+const GOLD_STUB_BG = '#FFF8E1';            // light golden stub background
 
 /**
  * @param {object} p
@@ -150,7 +151,7 @@ export async function generateQRCard({
   // Background
   ctx.fillStyle = lightBg;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
-  ctx.fillStyle = stubBg;
+  ctx.fillStyle = GOLD_STUB_BG;
   ctx.fillRect(0, PERF_Y, CARD_W, CARD_H - PERF_Y);
 
   // QR
@@ -173,13 +174,13 @@ export async function generateQRCard({
 
   // Dashed separator
   ctx.save();
-  ctx.strokeStyle = GOLD_MUTED; ctx.lineWidth = 2; ctx.setLineDash([5, 6]);
-  ctx.beginPath(); ctx.moveTo(80, 130); ctx.lineTo(CARD_W - 80, 130); ctx.stroke();
+  ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 3.5; ctx.setLineDash([5, 6]);
+  ctx.beginPath(); ctx.moveTo(80, 135); ctx.lineTo(CARD_W - 80, 135); ctx.stroke();
   ctx.restore();
 
   // Perforated line
   ctx.save();
-  ctx.strokeStyle = GOLD_MUTED; ctx.lineWidth = 2.5; ctx.setLineDash([10, 7]);
+  ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 4; ctx.setLineDash([10, 7]);
   ctx.beginPath(); ctx.moveTo(32, PERF_Y); ctx.lineTo(CARD_W - 32, PERF_Y); ctx.stroke();
   ctx.restore();
 
@@ -197,51 +198,51 @@ export async function generateQRCard({
     ? 'تذكرة دخول: المستضيف الرئيسي'
     : 'تذكرة دخول: مرافق';
 
-  // Ticket label
-  ctx.font      = `bold 34px ${_fontFamily}`;
-  ctx.fillStyle = GOLD_TEXT;
+  // Ticket label — regular weight, logo dark color
+  ctx.font      = `34px ${_fontFamily}`;
+  ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
-  ctx.fillText(ar(ticketLabel), CARD_W / 2, 65);
+  ctx.fillText(ar(ticketLabel), CARD_W / 2, 62);
 
-  // Event name
-  ctx.font      = `22px ${_fontFamily}`;
-  ctx.fillStyle = GOLD_MUTED;
+  // Event name — enlarged, regular, logo dark color
+  ctx.font      = `28px ${_fontFamily}`;
+  ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
-  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 112);
+  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 110);
 
   // ── Date line (largest text on card) ────────────────────────────────────────
-  // Calendar icon on the right, date text right-aligned beside it
-  const calIconX = 740, calIconY = 155;
-  drawCalendarIcon(ctx, calIconX, calIconY, GOLD_TEXT);
+  // Calendar icon (golden, size 36) on the right; date text logo dark color
+  const calIconX = 726, calIconY = 160;
+  drawCalendarIcon(ctx, calIconX, calIconY, GOLD_TEXT, 36);
 
-  ctx.font      = `bold 44px ${_fontFamily}`;
-  ctx.fillStyle = GOLD_TEXT;
+  ctx.font      = `44px ${_fontFamily}`;
+  ctx.fillStyle = darkColor;
   ctx.textAlign = 'right';
-  ctx.fillText(ar(String(eventDate ?? '')), calIconX - 8, 188);
+  ctx.fillText(ar(String(eventDate ?? '')), calIconX - 10, 198);
 
   // ── Time line (same size as date) ───────────────────────────────────────────
-  // Clock icon on the left, time text left-aligned
+  // Time text left-aligned, clock icon (golden, size 36) to the right
   const timeText = ar(String(eventTime ?? ''));
-  ctx.font       = `bold 44px ${_fontFamily}`;
-  ctx.fillStyle  = GOLD_TEXT;
+  ctx.font       = `44px ${_fontFamily}`;
+  ctx.fillStyle  = darkColor;
   ctx.textAlign  = 'left';
-  ctx.fillText(timeText, 60, 248);
+  ctx.fillText(timeText, 60, 266);
   const timeWidth = ctx.measureText(timeText).width;
-  drawClockIcon(ctx, 60 + timeWidth + 10, 218, GOLD_TEXT);
+  drawClockIcon(ctx, 60 + timeWidth + 12, 230, GOLD_TEXT, 36);
 
   // Token code
   const tokenDisplay = token.slice(0, 12).toUpperCase()
     .replace(/(.{4})/g, '$1 ').trim();
   ctx.font      = 'bold 22px monospace';
-  ctx.fillStyle = GOLD_TEXT;
+  ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
-  ctx.fillText(tokenDisplay, CARD_W / 2, 850);
+  ctx.fillText(tokenDisplay, CARD_W / 2, 870);
 
-  // Stub text
-  ctx.font      = `20px ${_fontFamily}`;
-  ctx.fillStyle = GOLD_MUTED;
+  // Stub text — bold, larger, logo dark color
+  ctx.font      = `bold 26px ${_fontFamily}`;
+  ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
-  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 50);
+  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 55);
 
   const card = canvas.toBuffer('image/png');
   console.log(`[generator] card built label=${label} size=${card.length} bytes`);
@@ -264,23 +265,26 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawCalendarIcon(ctx, x, y, color) {
+function drawCalendarIcon(ctx, x, y, color, size = 22) {
+  const s = size / 22;
   ctx.save();
-  ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8 * s;
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  roundedRect(ctx, x, y + 3, 22, 20, 4); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x,      y + 9); ctx.lineTo(x + 22, y + 9); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 7,  y);     ctx.lineTo(x + 7,  y + 5); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 15, y);     ctx.lineTo(x + 15, y + 5); ctx.stroke();
+  roundedRect(ctx, x, y + 3 * s, 22 * s, 20 * s, 4 * s); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x,           y + 9 * s);  ctx.lineTo(x + 22 * s,  y + 9 * s);  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 7 * s,  y);           ctx.lineTo(x + 7 * s,  y + 5 * s); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 15 * s, y);           ctx.lineTo(x + 15 * s, y + 5 * s); ctx.stroke();
   ctx.restore();
 }
 
-function drawClockIcon(ctx, x, y, color) {
+function drawClockIcon(ctx, x, y, color, size = 22) {
+  const r = size / 2;
+  const cx = x + r, cy = y + r;
   ctx.save();
-  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.arc(x + 11, y + 11, 11, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 11, y + 11); ctx.lineTo(x + 11, y + 5);  ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + 11, y + 11); ctx.lineTo(x + 16, y + 11); ctx.stroke();
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8 * (size / 22); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - r * 0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r * 0.45, cy); ctx.stroke();
   ctx.restore();
 }
 
