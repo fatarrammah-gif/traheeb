@@ -129,16 +129,35 @@ export async function generateQRCard({
   const browser = await getBrowser();
   const page    = await browser.newPage();
   try {
+    // Forward page console + errors to server log for debugging
+    page.on('console', m => console.log(`[page:${m.type()}] ${m.text()}`));
+    page.on('pageerror', e => console.error('[page:error]', e.message));
+
     await page.setViewport({ width: CARD_W, height: CARD_H, deviceScaleFactor: 1 });
+    console.log('[generator] calling setContent, html length=', html.length);
+
     await page.setContent(html, { waitUntil: 'networkidle0' });
+    console.log('[generator] setContent done, url=', page.url());
 
     // Wait for custom @font-face (Cairo base64) to finish decoding
-    await page.evaluate(() => document.fonts.ready);
+    const fontCount = await page.evaluate(async () => {
+      await document.fonts.ready;
+      return document.fonts.size;
+    });
+    console.log(`[generator] fonts.ready, loaded ${fontCount} font(s)`);
 
-    // Extra settle time for layout and paint
-    await new Promise(r => setTimeout(r, 300));
+    // Check card element exists and has dimensions
+    const dims = await page.evaluate(() => {
+      const el = document.getElementById('card');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { w: r.width, h: r.height, bg: getComputedStyle(el).backgroundColor };
+    });
+    console.log('[generator] #card dims:', JSON.stringify(dims));
 
-    // Full-viewport clip — more reliable than element.screenshot()
+    // Extra settle time for paint
+    await new Promise(r => setTimeout(r, 400));
+
     const card = await page.screenshot({
       type: 'png',
       clip: { x: 0, y: 0, width: CARD_W, height: CARD_H },
