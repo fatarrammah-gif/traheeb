@@ -22,14 +22,29 @@
 import { createCanvas, loadImage } from 'canvas';
 import QRCode      from 'qrcode';
 import sharp       from 'sharp';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join, dirname } from 'path';
 import { extractDarkestColor, extractLightBgColor, lightenHex } from './colorExtractor.js';
 
 // ── Embed Arabic font as base64 so librsvg never needs to search OS fonts ─────
-const _fontPath = join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts/Cairo.ttf');
-const _fontB64  = readFileSync(_fontPath).toString('base64');
+// Read lazily on first use to avoid module-load-time path errors.
+let _fontB64 = null;
+function getFontB64() {
+  if (_fontB64) return _fontB64;
+  // Candidate paths in priority order:
+  //   1. process.cwd()-relative: works on Railway (cwd = /app/apps/web)
+  //   2. import.meta.url-relative: works in local dev (src/services/qr/ → src/assets/fonts/)
+  const candidates = [
+    join(process.cwd(), 'src/assets/fonts/Cairo.ttf'),
+    join(dirname(fileURLToPath(import.meta.url)), '../../assets/fonts/Cairo.ttf'),
+  ];
+  const found = candidates.find(existsSync);
+  if (!found) throw new Error(`Cairo.ttf not found. Tried:\n${candidates.join('\n')}`);
+  console.log(`[generator] loading font from: ${found}`);
+  _fontB64 = readFileSync(found).toString('base64');
+  return _fontB64;
+}
 
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
@@ -232,7 +247,7 @@ function buildTextSVG({ ticketLabel, eventName, eventDate, eventTime, tokenDispl
     <style>
       @font-face {
         font-family: 'Cairo';
-        src: url('data:font/truetype;base64,${_fontB64}') format('truetype');
+        src: url('data:font/truetype;base64,${getFontB64()}') format('truetype');
         font-weight: 100 900;
       }
     </style>
