@@ -119,9 +119,12 @@ export default function EventDetailPage() {
   const [pendingGuests, setPendingGuests] = useState([]);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(null);
-  const [contactsSupported] = useState(() =>
-    typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window
-  );
+  const [contactsSupported] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return 'contacts' in navigator;
+  });
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
+  const [bulkText, setBulkText] = useState('');
 
   const csvInputRef = useRef(null);
 
@@ -199,6 +202,30 @@ export default function EventDetailPage() {
         setToast({ message: 'تعذر الوصول إلى جهات الاتصال', type: 'error' });
       }
     }
+  }
+
+  function handleBulkPaste() {
+    const lines = bulkText.trim().split('\n').filter(Boolean);
+    const mapped = [];
+    for (const line of lines) {
+      // Support: "Name, Phone" or "Name Phone" or just "Phone"
+      const parts = line.split(/,|\t/).map(p => p.trim());
+      if (parts.length >= 2) {
+        mapped.push({ name: parts[0], phone: parts[1], companions: parseInt(parts[2] || '0') || 0 });
+      } else if (parts.length === 1 && parts[0]) {
+        // Just a phone number — use it as name too
+        mapped.push({ name: parts[0], phone: parts[0], companions: 0 });
+      }
+    }
+    const valid = mapped.filter(c => c.name && c.phone);
+    if (!valid.length) {
+      setToast({ message: 'لم يتم التعرف على بيانات صالحة', type: 'error' });
+      return;
+    }
+    setPendingGuests(prev => [...prev, ...valid]);
+    setBulkText('');
+    setShowBulkPaste(false);
+    setToast({ message: `تم إضافة ${valid.length} مدعو`, type: 'success' });
   }
 
   async function handleSendInvitations() {
@@ -381,6 +408,21 @@ export default function EventDetailPage() {
                     </button>
                   )}
                   <button
+                    onClick={() => { setShowBulkPaste(v => !v); setShowAddForm(false); }}
+                    style={{
+                      background: showBulkPaste ? 'rgba(255,193,7,0.2)' : 'rgba(255,255,255,0.08)',
+                      color: showBulkPaste ? '#ffd54f' : 'rgba(255,255,255,0.75)',
+                      border: `1px solid ${showBulkPaste ? 'rgba(255,193,7,0.3)' : 'rgba(255,255,255,0.15)'}`,
+                      borderRadius: 10,
+                      padding: '8px 16px',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    📋 لصق قائمة
+                  </button>
+                  <button
                     onClick={() => csvInputRef.current?.click()}
                     style={{
                       background: 'rgba(255,255,255,0.08)',
@@ -402,7 +444,7 @@ export default function EventDetailPage() {
                     style={{ display: 'none' }}
                   />
                   <button
-                    onClick={() => setShowAddForm((v) => !v)}
+                    onClick={() => { setShowAddForm(v => !v); setShowBulkPaste(false); }}
                     style={{
                       background: showAddForm ? 'rgba(200,0,90,0.3)' : 'rgba(200,0,90,0.15)',
                       color: '#ff6aab',
@@ -418,6 +460,68 @@ export default function EventDetailPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Bulk paste panel */}
+              {showBulkPaste && (
+                <div
+                  style={{
+                    background: 'rgba(255,193,7,0.06)',
+                    border: '1px solid rgba(255,193,7,0.2)',
+                    borderRadius: 14,
+                    padding: '18px',
+                    marginBottom: 16,
+                  }}
+                >
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', margin: '0 0 10px' }}>
+                    الصق قائمة المدعوين — سطر لكل شخص بالتنسيق: <span style={{ color: '#ffd54f', direction: 'ltr', display: 'inline-block' }}>الاسم، الجوال</span>
+                  </p>
+                  <textarea
+                    value={bulkText}
+                    onChange={e => setBulkText(e.target.value)}
+                    placeholder={'محمد علي، 0512345678\nسارة أحمد، 0598765432'}
+                    rows={6}
+                    style={{
+                      ...inputStyle,
+                      resize: 'vertical',
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      marginBottom: 12,
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={handleBulkPaste}
+                      style={{
+                        background: '#C8005A',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 10,
+                        padding: '10px 20px',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      إضافة للقائمة
+                    </button>
+                    <button
+                      onClick={() => { setShowBulkPaste(false); setBulkText(''); }}
+                      style={{
+                        background: 'transparent',
+                        color: 'rgba(255,255,255,0.5)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: 10,
+                        padding: '10px 16px',
+                        fontSize: 14,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Add guest inline form */}
               {showAddForm && (
