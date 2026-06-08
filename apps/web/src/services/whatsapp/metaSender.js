@@ -60,7 +60,7 @@ export async function sendInvitationTemplate({
   time,
   venueName,
   companionsLabel,
-  confirmUrl,
+  locationLink,
   imageUrl,
   invitationToken,
 }) {
@@ -95,7 +95,7 @@ export async function sendInvitationTemplate({
       { type: 'text', parameter_name: 'time',      text: sanitizeParam(time           || '-') },
       { type: 'text', parameter_name: 'location',  text: sanitizeParam(venueName      || '-') },
       { type: 'text', parameter_name: 'people_no', text: sanitizeParam(companionsLabel || '0') },
-      { type: 'text', parameter_name: 'link',      text: sanitizeParam(confirmUrl     || '-') },
+      { type: 'text', parameter_name: 'link',      text: sanitizeParam(locationLink   || '-') },
     ],
   });
 
