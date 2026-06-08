@@ -967,12 +967,12 @@ export default function CreateEvent() {
         {/* ── وسائط الدعوة ── */}
         <SectionCard title="وسائط الدعوة">
           {/* Event Logo */}
-          <Field label="شعار الفعالية">
+          <Field label="شعار الفعالية" required>
             <MediaBtn formKey="eventLogo" acceptVideo={false} />
           </Field>
 
           {/* Invitation media */}
-          <Field label="صورة أو فيديو الدعوة">
+          <Field label="صورة أو فيديو الدعوة" required>
             <MediaBtn formKey="invitationMedia" acceptVideo />
             <Text
               style={{
@@ -999,7 +999,7 @@ export default function CreateEvent() {
                 marginTop: 5,
               }}
             >
-              يُفضّل صورة مربعة بدقة عالية
+              اختياري
             </Text>
           </Field>
         </SectionCard>
