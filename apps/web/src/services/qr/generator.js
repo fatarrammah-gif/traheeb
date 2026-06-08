@@ -183,8 +183,9 @@ export async function generateQRCard({
   qrCtx.fillStyle = '#FFFFFF';
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   const grad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
-  grad.addColorStop(0, '#000000');
-  grad.addColorStop(1, darkColor);
+  // Use a darkened version of lightBg so QR matches the card's light palette
+  grad.addColorStop(0, darkenHex(lightBg, 0.65));
+  grad.addColorStop(1, darkenHex(lightBg, 0.45));
   qrCtx.fillStyle = grad;
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   qrCtx.globalCompositeOperation = 'destination-in';
@@ -204,31 +205,47 @@ export async function generateQRCard({
   }
 
   // ── 3. Main canvas ──────────────────────────────────────────────────────────
-  const canvas = createCanvas(CARD_W, CARD_H);
-  const ctx    = canvas.getContext('2d');
-
   const hasBg = !!bgBuffer;
+  let canvas, ctx;
 
   if (hasBg) {
-    // ── Background image mode — QR only, no text ───────────────────────────
-    const bg = computeBgLayout(CARD_H);
+    // ── Background image mode — keep original dimensions, detect placeholder ──
+    const meta = await sharp(bgBuffer).metadata();
+    const imgW = meta.width;
+    const imgH = meta.height;
 
-    const bgFilled = await sharp(bgBuffer)
-      .resize(CARD_W, CARD_H, { fit: 'fill' })
-      .png().toBuffer();
-    ctx.drawImage(await loadImage(bgFilled), 0, 0);
+    canvas = createCanvas(imgW, imgH);
+    ctx    = canvas.getContext('2d');
 
-    // QR white backing + image
+    // Draw at native resolution — no stretching
+    const bgPng = await sharp(bgBuffer).png().toBuffer();
+    ctx.drawImage(await loadImage(bgPng), 0, 0);
+
+    // Locate the white/light placeholder square in the design
+    const placeholder = await detectWhitePlaceholder(bgBuffer, imgW, imgH);
+    console.log(`[generator] placeholder detected x=${placeholder.x} y=${placeholder.y} w=${placeholder.w} h=${placeholder.h}`);
+
+    // Fit QR inside placeholder with a small margin
+    const margin = 16;
+    const available = Math.min(placeholder.w, placeholder.h) - margin * 2;
+    const qrPlaceSize = Math.max(150, available);
+    const qrX = placeholder.x + Math.round((placeholder.w - qrPlaceSize) / 2);
+    const qrY = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
+
+    // White backing + QR image
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(bg.qrLeft, bg.qrTop, bg.qrSize, bg.qrSize);
-    ctx.drawImage(qrCanvas, bg.qrLeft, bg.qrTop, bg.qrSize, bg.qrSize);
+    ctx.fillRect(qrX, qrY, qrPlaceSize, qrPlaceSize);
+    ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
     // Golden border
-    drawGoldBorder(ctx, bg.qrLeft - BORDER_PAD, bg.qrTop - BORDER_PAD,
-                        bg.qrSize + BORDER_PAD * 2, bg.qrSize + BORDER_PAD * 2);
+    drawGoldBorder(ctx, qrX - BORDER_PAD, qrY - BORDER_PAD,
+                        qrPlaceSize + BORDER_PAD * 2, qrPlaceSize + BORDER_PAD * 2);
 
   } else {
     // ── Default mode — QR only, centered vertically, no text ──────────────
+    canvas = createCanvas(CARD_W, CARD_H);
+    ctx    = canvas.getContext('2d');
+
     ctx.fillStyle = lightBg;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
 
@@ -251,6 +268,98 @@ export async function generateQRCard({
 }
 
 // ── Drawing helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Darken a hex colour by `amount` (0 = no change, 1 = black).
+ * Relies on hexToRgb defined below — safe because these are function declarations.
+ */
+function darkenHex(hex, amount) {
+  const { r, g, b } = hexToRgb(hex);
+  const f = 1 - Math.max(0, Math.min(1, amount));
+  const rr = Math.round(r * f).toString(16).padStart(2, '0');
+  const gg = Math.round(g * f).toString(16).padStart(2, '0');
+  const bb = Math.round(b * f).toString(16).padStart(2, '0');
+  return `#${rr}${gg}${bb}`;
+}
+
+/**
+ * Detect the largest bright (white/light) rectangular region in an image.
+ * Uses the "max rectangle in histogram" algorithm on a coarse luminance grid.
+ * Returns pixel coordinates { x, y, w, h } in the original image's space.
+ * Falls back to a centred bottom region if nothing large enough is found.
+ */
+async function detectWhitePlaceholder(imgBuffer, imgW, imgH) {
+  const GRID = 40;           // analyse at 40×40 resolution
+  const BRIGHT = 210;        // luminance threshold (0-255) to call a cell "bright"
+  const MIN_CELLS = 4;       // reject rectangles smaller than this in either dimension
+
+  const { data, info } = await sharp(imgBuffer)
+    .resize(GRID, GRID, { fit: 'fill' })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const gW = info.width;
+  const gH = info.height;
+  const ch = info.channels;
+
+  // Build per-cell brightness
+  const bright = [];
+  for (let y = 0; y < gH; y++) {
+    bright.push([]);
+    for (let x = 0; x < gW; x++) {
+      const i = (y * gW + x) * ch;
+      const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      bright[y].push(lum > BRIGHT);
+    }
+  }
+
+  // Max-rectangle-in-histogram for each row
+  let bestArea = 0;
+  let bestRect = null;
+  const heights = Array(gW).fill(0);
+
+  for (let y = 0; y < gH; y++) {
+    for (let x = 0; x < gW; x++) {
+      heights[x] = bright[y][x] ? heights[x] + 1 : 0;
+    }
+
+    const stack = [];
+    for (let x = 0; x <= gW; x++) {
+      const h = x < gW ? heights[x] : 0;
+      while (stack.length && heights[stack[stack.length - 1]] > h) {
+        const height = heights[stack.pop()];
+        const left   = stack.length ? stack[stack.length - 1] + 1 : 0;
+        const width  = x - left;
+        if (width >= MIN_CELLS && height >= MIN_CELLS) {
+          const area = height * width;
+          if (area > bestArea) {
+            bestArea = area;
+            bestRect = { gx: left, gy: y - height + 1, gw: width, gh: height };
+          }
+        }
+      }
+      stack.push(x);
+    }
+  }
+
+  // Convert grid → image coordinates
+  if (bestRect) {
+    const x = Math.round(bestRect.gx * imgW / gW);
+    const y = Math.round(bestRect.gy * imgH / gH);
+    const w = Math.round(bestRect.gw * imgW / gW);
+    const h = Math.round(bestRect.gh * imgH / gH);
+    if (w >= 50 && h >= 50) return { x, y, w, h };
+  }
+
+  // Fallback: centre-bottom square at ~35% of the shorter side
+  const size = Math.round(Math.min(imgW, imgH) * 0.35);
+  return {
+    x: Math.round((imgW - size) / 2),
+    y: Math.round(imgH * 0.58),
+    w: size,
+    h: size,
+  };
+}
 
 function drawGoldBorder(ctx, x, y, w, h) {
   const grad = ctx.createLinearGradient(x, y, x + w, y + h);
