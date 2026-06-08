@@ -101,7 +101,7 @@ export async function POST(request, { params }) {
 }
 
 
-function buildLocationLink(event) {
+function buildMapsUrl(event) {
   if (event.map_lat && event.map_lng) {
     return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
   }
@@ -109,8 +109,21 @@ function buildLocationLink(event) {
   return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
 }
 
+async function shortenUrl(longUrl) {
+  try {
+    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    if (!res.ok) throw new Error(`TinyURL status ${res.status}`);
+    const short = (await res.text()).trim();
+    console.log(`[invite] shortened ${longUrl} → ${short}`);
+    return short;
+  } catch (err) {
+    console.warn('[invite] TinyURL failed, using original URL:', err.message);
+    return longUrl;
+  }
+}
+
 async function sendInvitations(event, guests) {
-  const locationLink = buildLocationLink(event);
+  const locationLink = await shortenUrl(buildMapsUrl(event));
 
   for (const guest of guests) {
     const companionsLabel = String(guest.companions || 0);
