@@ -101,9 +101,16 @@ export async function POST(request, { params }) {
 }
 
 
+function buildLocationLink(event) {
+  if (event.map_lat && event.map_lng) {
+    return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
+  }
+  const query = [event.venue, event.location].filter(Boolean).join(' ');
+  return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+}
+
 async function sendInvitations(event, guests) {
-  // Short redirect URL — clean in WhatsApp, resolves to Google Maps on tap
-  const locationLink = `${BASE_URL}/api/loc/${event.id}`;
+  const locationLink = buildLocationLink(event);
 
   for (const guest of guests) {
     const companionsLabel = String(guest.companions || 0);
