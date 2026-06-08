@@ -92,20 +92,20 @@ function ensureFont() {
 // ─────────── ──── ────────────── ───────────────────────────────────────────
 // Header      25%  0   – 262      nothing printed
 // Top texts   20%  263 – 472      label, event name, date, time  (small fonts)
-// QR section  27%  473 – 756      QR code + golden border
-// Bot texts   13%  757 – 893      token code + entrance instruction
-// Footer      15%  894 – 1050     nothing printed
+// QR section  32%  473 – 808      QR code + golden border
+// Bot texts   13%  809 – 944      token code + entrance instruction
+// Footer      10%  945 – 1050     nothing printed
 function computeBgLayout(cardH) {
   const headerEnd   = Math.round(cardH * 0.25);   // 263
   const textsTopEnd = Math.round(cardH * 0.45);   // 473
-  const qrSectEnd   = Math.round(cardH * 0.72);   // 756
-  const footerStart = Math.round(cardH * 0.85);   // 893
+  const qrSectEnd   = Math.round(cardH * 0.77);   // 809
+  const footerStart = Math.round(cardH * 0.90);   // 945
 
   // QR fills its section minus border padding on each side
-  const qrH    = qrSectEnd - textsTopEnd;          // 283
-  const qrSize = qrH - 2 * BORDER_PAD;             // 259
+  const qrH    = qrSectEnd - textsTopEnd;          // 336
+  const qrSize = qrH - 2 * BORDER_PAD;             // 312
   const qrTop  = textsTopEnd + BORDER_PAD;         // 485
-  const qrLeft = Math.round((800 - qrSize) / 2);   // 271
+  const qrLeft = Math.round((800 - qrSize) / 2);   // 244
 
   // Top-text baselines inside the 210 px band
   // Fonts: label=34px Amiri, name=22px Amiri, date/time=32px Cairo bold
@@ -114,9 +114,9 @@ function computeBgLayout(cardH) {
   const dateY  = nameY + 10 + 32;       // 387
   const timeY  = dateY + 6 + 32;        // 425
 
-  // Bottom-text baselines — small gap to fit inside the 137 px band
-  const tokenY = qrSectEnd + 28;        // 784
-  const stubY  = tokenY + 22;           // 806
+  // Bottom-text baselines — gap from QR, then space between two lines
+  const tokenY = qrSectEnd + 32;        // 841  (gap from QR border)
+  const stubY  = tokenY + 28;           // 869  (space between lines)
 
   return { headerEnd, textsTopEnd, qrSectEnd, footerStart,
            qrSize, qrTop, qrLeft,
