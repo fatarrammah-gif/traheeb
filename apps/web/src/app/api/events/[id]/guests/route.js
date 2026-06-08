@@ -111,6 +111,12 @@ function buildLocationLink(event) {
 
 async function sendInvitations(event, guests) {
   const locationLink = buildLocationLink(event);
+  // Arabic label prepended to the raw map URL — WhatsApp renders the URL as a
+  // tappable link; the label text above it tells the guest what it is.
+  const mapLine = `رجاء اضغط هنا للحصول على الموقع: ${locationLink}`;
+  const invitationText = event.invitation_text
+    ? `${event.invitation_text} ${mapLine}`
+    : mapLine;
 
   for (const guest of guests) {
     const confirmUrl = `${BASE_URL}/api/confirm/${guest.invitation_token}`;
@@ -121,10 +127,10 @@ async function sendInvitations(event, guests) {
       await sendInvitationTemplate({
         phone: guest.phone,
         guestName: guest.name || '-',
-        invitationText: event.invitation_text || '-',
+        invitationText,
         date: event.date || '-',
         time: event.time || '-',
-        venueName: [event.venue, event.location].filter(Boolean).join('، ') || '-',
+        venueName: event.venue || '-',   // user-typed name only, no map data
         companionsLabel: companionsLabel || '0',
         confirmUrl,
         imageUrl: event.invitation_media_url || null,

@@ -39,9 +39,9 @@ export function invitationMessage({ guestName, invitationText, event, companions
     `${invitationText || ''}\n\n` +
     `📅 التاريخ: ${event.date}\n` +
     `🕐 الوقت: ${event.time}\n` +
-    `📍 المكان: ${event.venue}${event.location ? `، ${event.location}` : ''}\n` +
+    `📍 المكان: ${event.venue}\n` +
     companionsLine +
-    `\n🗺 موقع الفعالية:\n${locationLink}\n\n` +
+    `\n🗺 رجاء اضغط هنا للحصول على الموقع:\n${locationLink}\n\n` +
     `━━━━━━━━━━━━━━━━━━\n` +
     `✅ تأكيد الحضور:\n${confirmUrl}\n\n` +
     `❌ الاعتذار:\n${declineUrl}\n\n` +
