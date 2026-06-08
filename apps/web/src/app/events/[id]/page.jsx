@@ -420,20 +420,49 @@ export default function EventDetailPage() {
                   المدعوون ({guests.length})
                 </h3>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {contactsSupported ? (
+                    <button
+                      onClick={handlePickContacts}
+                      style={{
+                        background: 'rgba(33,150,243,0.15)',
+                        color: '#64b5f6',
+                        border: '1px solid rgba(33,150,243,0.3)',
+                        borderRadius: 10,
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      📱 من جهات الاتصال
+                    </button>
+                  ) : (
+                    <div style={{
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.45)',
+                      padding: '8px 12px',
+                      background: 'rgba(255,255,255,0.04)',
+                      borderRadius: 10,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      maxWidth: 220,
+                      lineHeight: 1.5,
+                    }}>
+                      💡 لفتح جهات الاتصال مباشرةً افتح الصفحة في متصفح Chrome
+                    </div>
+                  )}
                   <button
                     onClick={() => vcfInputRef.current?.click()}
                     style={{
-                      background: 'rgba(33,150,243,0.15)',
-                      color: '#64b5f6',
-                      border: '1px solid rgba(33,150,243,0.3)',
+                      background: 'rgba(255,255,255,0.08)',
+                      color: 'rgba(255,255,255,0.75)',
+                      border: '1px solid rgba(255,255,255,0.15)',
                       borderRadius: 10,
                       padding: '8px 16px',
                       fontSize: 13,
                       cursor: 'pointer',
-                      fontWeight: 600,
                     }}
                   >
-                    📱 من جهات الاتصال
+                    📁 استيراد VCF
                   </button>
                   <input
                     ref={vcfInputRef}
@@ -442,22 +471,6 @@ export default function EventDetailPage() {
                     onChange={handleVCFUpload}
                     style={{ display: 'none' }}
                   />
-                  {contactsSupported && (
-                    <button
-                      onClick={handlePickContacts}
-                      style={{
-                        background: 'rgba(33,150,243,0.1)',
-                        color: '#64b5f6',
-                        border: '1px solid rgba(33,150,243,0.2)',
-                        borderRadius: 10,
-                        padding: '8px 16px',
-                        fontSize: 13,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      📲 اختيار مباشر
-                    </button>
-                  )}
                   <button
                     onClick={() => { setShowBulkPaste(v => !v); setShowAddForm(false); }}
                     style={{
