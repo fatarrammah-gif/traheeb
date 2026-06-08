@@ -119,6 +119,9 @@ export default function EventDetailPage() {
   const [pendingGuests, setPendingGuests] = useState([]);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(null);
+  const [contactsSupported] = useState(() =>
+    typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window
+  );
 
   const csvInputRef = useRef(null);
 
@@ -169,6 +172,33 @@ export default function EventDetailPage() {
     };
     reader.readAsText(file);
     e.target.value = '';
+  }
+
+  async function handlePickContacts() {
+    try {
+      const selected = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+      if (!selected || selected.length === 0) return;
+
+      const mapped = selected
+        .map((c) => ({
+          name: (c.name?.[0] ?? '').trim(),
+          phone: (c.tel?.[0] ?? '').trim(),
+          companions: 0,
+        }))
+        .filter((c) => c.name && c.phone);
+
+      if (mapped.length === 0) {
+        setToast({ message: 'لم يتم العثور على أرقام جوال في جهات الاتصال المختارة', type: 'error' });
+        return;
+      }
+
+      setPendingGuests((prev) => [...prev, ...mapped]);
+      setToast({ message: `تم إضافة ${mapped.length} من جهات الاتصال`, type: 'success' });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setToast({ message: 'تعذر الوصول إلى جهات الاتصال', type: 'error' });
+      }
+    }
   }
 
   async function handleSendInvitations() {
@@ -332,11 +362,26 @@ export default function EventDetailPage() {
                 <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
                   المدعوون ({guests.length})
                 </h3>
-                <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {contactsSupported && (
+                    <button
+                      onClick={handlePickContacts}
+                      style={{
+                        background: 'rgba(33,150,243,0.15)',
+                        color: '#64b5f6',
+                        border: '1px solid rgba(33,150,243,0.3)',
+                        borderRadius: 10,
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      📱 من جهات الاتصال
+                    </button>
+                  )}
                   <button
-                    onClick={() => {
-                      csvInputRef.current?.click();
-                    }}
+                    onClick={() => csvInputRef.current?.click()}
                     style={{
                       background: 'rgba(255,255,255,0.08)',
                       color: 'rgba(255,255,255,0.75)',
