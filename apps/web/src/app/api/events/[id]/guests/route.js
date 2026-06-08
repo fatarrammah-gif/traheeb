@@ -111,13 +111,14 @@ function buildMapsUrl(event) {
 
 async function shortenUrl(longUrl) {
   try {
-    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
-    if (!res.ok) throw new Error(`TinyURL status ${res.status}`);
+    // is.gd: free, no API key, instant redirect (no preview/spam page)
+    const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`);
+    if (!res.ok) throw new Error(`is.gd status ${res.status}`);
     const short = (await res.text()).trim();
     console.log(`[invite] shortened ${longUrl} → ${short}`);
     return short;
   } catch (err) {
-    console.warn('[invite] TinyURL failed, using original URL:', err.message);
+    console.warn('[invite] is.gd failed, using original URL:', err.message);
     return longUrl;
   }
 }
