@@ -124,6 +124,7 @@ export default function EventDetailPage() {
   const [bulkText, setBulkText] = useState('');
 
   const csvInputRef = useRef(null);
+  const vcfInputRef = useRef(null);
 
   useEffect(() => {
     if (!token) {
@@ -203,6 +204,34 @@ export default function EventDetailPage() {
         setToast({ message: 'تعذر الوصول إلى جهات الاتصال', type: 'error' });
       }
     }
+  }
+
+  function handleVCFUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      const cards = text.split(/BEGIN:VCARD/i).slice(1);
+      const results = [];
+      for (const card of cards) {
+        // Extract full name
+        const fnMatch = card.match(/^FN[^:]*:(.+)$/m);
+        const name = fnMatch ? fnMatch[1].trim() : '';
+        // Extract first phone number
+        const telMatch = card.match(/^TEL[^:]*:(.+)$/m);
+        const phone = telMatch ? telMatch[1].trim().replace(/\s/g, '') : '';
+        if (name && phone) results.push({ name, phone, companions: 0 });
+      }
+      if (!results.length) {
+        setToast({ message: 'لم يتم العثور على جهات اتصال في الملف', type: 'error' });
+        return;
+      }
+      setPendingGuests(prev => [...prev, ...results]);
+      setToast({ message: `تم إضافة ${results.length} من جهات الاتصال`, type: 'success' });
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   }
 
   function handleBulkPaste() {
@@ -391,21 +420,42 @@ export default function EventDetailPage() {
                   المدعوون ({guests.length})
                 </h3>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => vcfInputRef.current?.click()}
+                    style={{
+                      background: 'rgba(33,150,243,0.15)',
+                      color: '#64b5f6',
+                      border: '1px solid rgba(33,150,243,0.3)',
+                      borderRadius: 10,
+                      padding: '8px 16px',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    📱 من جهات الاتصال
+                  </button>
+                  <input
+                    ref={vcfInputRef}
+                    type="file"
+                    accept=".vcf,text/vcard,text/x-vcard"
+                    onChange={handleVCFUpload}
+                    style={{ display: 'none' }}
+                  />
                   {contactsSupported && (
                     <button
                       onClick={handlePickContacts}
                       style={{
-                        background: 'rgba(33,150,243,0.15)',
+                        background: 'rgba(33,150,243,0.1)',
                         color: '#64b5f6',
-                        border: '1px solid rgba(33,150,243,0.3)',
+                        border: '1px solid rgba(33,150,243,0.2)',
                         borderRadius: 10,
                         padding: '8px 16px',
                         fontSize: 13,
                         cursor: 'pointer',
-                        fontWeight: 600,
                       }}
                     >
-                      📱 من جهات الاتصال
+                      📲 اختيار مباشر
                     </button>
                   )}
                   <button
