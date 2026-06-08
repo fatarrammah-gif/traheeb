@@ -350,7 +350,7 @@ export default function CreateEvent() {
     const MAX = 500 * 1024 * 1024;
     const opts = {
       mediaTypes: mediaType === "video" ? ["videos"] : ["images"],
-      allowsEditing: formKey !== "invitationMedia",
+      allowsEditing: formKey !== "invitationMedia" && formKey !== "qrBackground",
       quality: 0.7,
     };
     const res = await ExpoImagePicker.launchImageLibraryAsync(opts);
