@@ -183,9 +183,9 @@ export async function generateQRCard({
   qrCtx.fillStyle = '#FFFFFF';
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   const grad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
-  // Use a darkened version of lightBg so QR matches the card's light palette
-  grad.addColorStop(0, darkenHex(lightBg, 0.65));
-  grad.addColorStop(1, darkenHex(lightBg, 0.45));
+  // Slightly darker than lightBg — still a light tone, just enough contrast
+  grad.addColorStop(0, darkenHex(lightBg, 0.22));
+  grad.addColorStop(1, darkenHex(lightBg, 0.12));
   qrCtx.fillStyle = grad;
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   qrCtx.globalCompositeOperation = 'destination-in';
@@ -230,11 +230,11 @@ export async function generateQRCard({
     const available = Math.min(placeholder.w, placeholder.h) - margin * 2;
     const qrPlaceSize = Math.max(150, available);
     const qrX = placeholder.x + Math.round((placeholder.w - qrPlaceSize) / 2);
-    const qrY = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
+    // Shift slightly toward the bottom so QR lands over the design's actual square
+    const qrYCenter = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
+    const qrY = qrYCenter + Math.round(placeholder.h * 0.08);
 
-    // White backing + QR image
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(qrX, qrY, qrPlaceSize, qrPlaceSize);
+    // No white backing — QR floats over the background image (transparent bg)
     ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
     // Golden border
