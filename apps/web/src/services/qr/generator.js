@@ -87,6 +87,59 @@ function ensureFont() {
   console.log(`[generator] fonts: Amiri-reg=${regPath ?? 'NOT FOUND'} Amiri-bold=${boldPath ?? 'NOT FOUND'} Cairo=${cairoPath ?? 'NOT FOUND'}`);
 }
 
+// ── Empty-zone detector ───────────────────────────────────────────────────────
+// Scans horizontal strips of the background image (resized to card height) and
+// finds the largest contiguous band of "light" rows — that is the empty area
+// where the QR code and info should be placed.
+async function detectEmptyZone(bgBuffer, cardH) {
+  try {
+    const SAMPLE_W = 60;
+    const { data, info } = await sharp(bgBuffer)
+      .resize(SAMPLE_W, cardH, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const h = info.height;
+
+    // Per-row average brightness (0–255)
+    const rowBright = Array.from({ length: h }, (_, y) => {
+      let s = 0;
+      for (let x = 0; x < SAMPLE_W; x++) s += data[y * SAMPLE_W + x];
+      return s / SAMPLE_W;
+    });
+
+    // Smooth with an 11-row window to reduce noise
+    const smooth = rowBright.map((_, i) => {
+      let s = 0, n = 0;
+      for (let k = Math.max(0, i - 5); k <= Math.min(h - 1, i + 5); k++) { s += rowBright[k]; n++; }
+      return s / n;
+    });
+
+    // Rows above the 45th-percentile brightness are considered "empty / light"
+    const sorted = [...smooth].sort((a, b) => a - b);
+    const threshold = sorted[Math.floor(h * 0.45)];
+
+    // Find the largest contiguous block of light rows
+    let bestStart = 0, bestLen = 0, curStart = 0, curLen = 0;
+    for (let y = 0; y < h; y++) {
+      if (smooth[y] >= threshold) {
+        if (curLen === 0) curStart = y;
+        if (++curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+      } else {
+        curLen = 0;
+      }
+    }
+
+    if (bestLen < 80) return { startY: 0, endY: cardH }; // no clear zone
+    console.log(`[generator] empty zone: rows ${bestStart}–${bestStart + bestLen}`);
+    return { startY: bestStart, endY: bestStart + bestLen };
+  } catch (err) {
+    console.warn('[generator] detectEmptyZone error:', err.message);
+    return { startY: 0, endY: cardH };
+  }
+}
+
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
 const CARD_H     = 1050;
@@ -171,18 +224,51 @@ export async function generateQRCard({
   const canvas = createCanvas(CARD_W, CARD_H);
   const ctx    = canvas.getContext('2d');
 
-  // Background
-  ctx.fillStyle = lightBg;
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
-  ctx.fillStyle = GOLD_STUB_BG;
-  ctx.fillRect(0, PERF_Y, CARD_W, CARD_H - PERF_Y);
+  // ── Background & y-offset ────────────────────────────────────────────────────
+  // hasBg = caller provided a background image → skip ticket decorations,
+  //         detect empty zone, shift all content into that zone.
+  const hasBg = !!bgBuffer;
+  let yOff = 0;  // vertical shift applied to all content via ctx.translate
 
-  // QR
+  if (hasBg) {
+    // Draw the image filling the full card (cover = no distortion, minimal crop)
+    const bgFilled = await sharp(bgBuffer)
+      .resize(CARD_W, CARD_H, { fit: 'cover', position: 'centre' })
+      .png().toBuffer();
+    ctx.drawImage(await loadImage(bgFilled), 0, 0);
+
+    // Detect the largest empty (lightest) band in the image
+    const zone       = await detectEmptyZone(bgBuffer, CARD_H);
+    const zoneCenter = (zone.startY + zone.endY) / 2;
+    // Natural center of the QR block in the default layout
+    const naturalQrCenter = QR_TOP + QR_SIZE / 2;   // 360 + 220 = 580
+    yOff = Math.round(zoneCenter - naturalQrCenter);
+    // Clamp so content stays on card
+    const contentTop    = 18 + yOff;   // approx top of ticket label
+    const contentBottom = QR_TOP + QR_SIZE + 60 + yOff; // approx bottom of token
+    if (contentTop < 10) yOff -= contentTop - 10;
+    if (contentBottom > CARD_H - 10) yOff -= contentBottom - (CARD_H - 10);
+    console.log(`[generator] bg mode: zone=${zone.startY}-${zone.endY} yOff=${yOff}`);
+  } else {
+    // Solid ticket background — draw before translate (no yOff needed)
+    ctx.fillStyle = lightBg;
+    ctx.fillRect(0, 0, CARD_W, CARD_H);
+    ctx.fillStyle = GOLD_STUB_BG;
+    ctx.fillRect(0, PERF_Y, CARD_W, CARD_H - PERF_Y);
+  }
+
+  // ── Apply content offset ─────────────────────────────────────────────────────
+  // All content below (QR, border, texts) is drawn inside this translate block
+  // so that yOff centres it in the detected zone (yOff=0 for the default design).
+  ctx.save();
+  ctx.translate(0, yOff);
+
+  // QR white backing + QR image
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(QR_LEFT, QR_TOP, QR_SIZE, QR_SIZE);
   ctx.drawImage(qrCanvas, QR_LEFT, QR_TOP);
 
-  // Golden border
+  // Golden border around QR
   const bx = QR_LEFT - BORDER_PAD, by = QR_TOP - BORDER_PAD;
   const bw = QR_SIZE + BORDER_PAD * 2, bh = QR_SIZE + BORDER_PAD * 2;
   const goldGrad = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
@@ -195,26 +281,27 @@ export async function generateQRCard({
   roundedRect(ctx, bx, by, bw, bh, 16);
   ctx.stroke();
 
-  // Dashed separator
-  ctx.save();
-  ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 3.5; ctx.setLineDash([5, 6]);
-  ctx.beginPath(); ctx.moveTo(80, 135); ctx.lineTo(CARD_W - 80, 135); ctx.stroke();
-  ctx.restore();
+  // ── Ticket-only decorations (skipped when background image is provided) ──────
+  if (!hasBg) {
+    // Dashed separator
+    ctx.save();
+    ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 3.5; ctx.setLineDash([5, 6]);
+    ctx.beginPath(); ctx.moveTo(80, 135); ctx.lineTo(CARD_W - 80, 135); ctx.stroke();
+    ctx.restore();
 
-  // Perforated line
-  ctx.save();
-  ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 4; ctx.setLineDash([10, 7]);
-  ctx.beginPath(); ctx.moveTo(32, PERF_Y); ctx.lineTo(CARD_W - 32, PERF_Y); ctx.stroke();
-  ctx.restore();
+    // Perforated line
+    ctx.save();
+    ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 4; ctx.setLineDash([10, 7]);
+    ctx.beginPath(); ctx.moveTo(32, PERF_Y); ctx.lineTo(CARD_W - 32, PERF_Y); ctx.stroke();
+    ctx.restore();
 
-  // Notch circles
-  ctx.fillStyle = lightBg;
-  ctx.beginPath(); ctx.arc(0,      PERF_Y, 16, -Math.PI / 2, Math.PI / 2);  ctx.fill();
-  ctx.beginPath(); ctx.arc(CARD_W, PERF_Y, 16,  Math.PI / 2, -Math.PI / 2); ctx.fill();
+    // Notch semicircles
+    ctx.fillStyle = lightBg;
+    ctx.beginPath(); ctx.arc(0,      PERF_Y, 16, -Math.PI / 2, Math.PI / 2);  ctx.fill();
+    ctx.beginPath(); ctx.arc(CARD_W, PERF_Y, 16,  Math.PI / 2, -Math.PI / 2); ctx.fill();
+  }
 
-  // ── 4. Text — shaped Arabic rendered via FreeType ───────────────────────────
-  // arabic-reshaper produces correct glyph forms; ctx.direction='rtl' makes
-  // the canvas paint them right-to-left so the text reads naturally.
+  // ── 4. Text ──────────────────────────────────────────────────────────────────
   ctx.direction = 'rtl';
 
   const ticketLabel = label === 'main'
@@ -228,7 +315,6 @@ export async function generateQRCard({
   const labelStr   = ar(ticketLabel);
   const labelWidth = ctx.measureText(labelStr).width;
   ctx.fillText(labelStr, CARD_W / 2, 68);
-  // Underline drawn manually (canvas has no text-decoration)
   ctx.save();
   ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.setLineDash([]);
   ctx.beginPath();
@@ -243,10 +329,7 @@ export async function generateQRCard({
   ctx.textAlign = 'center';
   ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 118);
 
-  // ── Date + Time — bold Cairo, black ─────────────────────────────────────────
-  // Layout: both lines right-aligned to the same edge, block centered on card.
-  // Icon sits immediately right of the text with a 6px gap.
-  // Vertical: centered in space between separator (y=135) and QR top (y=360).
+  // ── Date + Time ───────────────────────────────────────────────────────────────
   const DATE_Y  = 213, TIME_Y = 281;
   const ICON_SZ = 36, ICON_GAP = 14;
   const DT_FONT = `bold 52px ${_dateTimeFontFamily}`;
@@ -258,21 +341,18 @@ export async function generateQRCard({
   const dateW   = ctx.measureText(dateStr).width;
   const timeW   = ctx.measureText(timeStr).width;
 
-  // Block width = widest text + gap + icon; centered on card
   const blockTextW = Math.max(dateW, timeW);
   const blockW     = blockTextW + ICON_GAP + ICON_SZ;
   const blockLeft  = Math.round(CARD_W / 2 - blockW / 2);
-  const textRight  = blockLeft + blockTextW;   // right edge both texts align to
+  const textRight  = blockLeft + blockTextW;
   const iconLeft   = textRight + ICON_GAP;
 
   ctx.fillStyle = '#000000';
   ctx.textAlign = 'right';
 
-  // Date line
   drawCalendarIcon(ctx, iconLeft, DATE_Y - 38, GOLD_TEXT, ICON_SZ);
   ctx.fillText(dateStr, textRight, DATE_Y);
 
-  // Time line
   drawClockIcon(ctx, iconLeft, TIME_Y - 38, GOLD_TEXT, ICON_SZ);
   ctx.fillText(timeStr, textRight, TIME_Y);
 
@@ -284,14 +364,18 @@ export async function generateQRCard({
   ctx.textAlign = 'center';
   ctx.fillText(tokenDisplay, CARD_W / 2, 878);
 
-  // Stub text — bold, larger, logo dark color
-  ctx.font      = `bold 26px ${_fontFamily}`;
-  ctx.fillStyle = darkColor;
-  ctx.textAlign = 'center';
-  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 55);
+  // Stub text — only for default (no-bg) design
+  if (!hasBg) {
+    ctx.font      = `bold 26px ${_fontFamily}`;
+    ctx.fillStyle = darkColor;
+    ctx.textAlign = 'center';
+    ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 55);
+  }
+
+  ctx.restore(); // end translate block
 
   const card = canvas.toBuffer('image/png');
-  console.log(`[generator] card built label=${label} size=${card.length} bytes`);
+  console.log(`[generator] card built label=${label} hasBg=${hasBg} size=${card.length} bytes`);
   return card;
 }
 
