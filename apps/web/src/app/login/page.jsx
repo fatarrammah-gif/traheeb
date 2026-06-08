@@ -50,13 +50,13 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp }),
+        body: JSON.stringify({ phone, code: otp }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'رمز التحقق غير صحيح');
       } else {
-        setAuth(data.token, data.user);
+        setAuth(data.jwt, data.user);
         window.location.href = '/dashboard';
       }
     } catch {
