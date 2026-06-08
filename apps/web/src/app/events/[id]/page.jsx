@@ -125,6 +125,7 @@ export default function EventDetailPage() {
 
   const csvInputRef = useRef(null);
   const vcfInputRef = useRef(null);
+  const xlsxInputRef = useRef(null);
 
   useEffect(() => {
     if (!token) {
@@ -204,6 +205,48 @@ export default function EventDetailPage() {
         setToast({ message: 'تعذر الوصول إلى جهات الاتصال', type: 'error' });
       }
     }
+  }
+
+  async function handleExcelUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (!rows.length) {
+        setToast({ message: 'الملف فارغ', type: 'error' });
+        return;
+      }
+
+      // Flexible column matching — works with Arabic or English headers
+      const findCol = (row, patterns) => {
+        const key = Object.keys(row).find(k =>
+          patterns.some(p => k.toString().trim().toLowerCase().includes(p))
+        );
+        return key ? String(row[key]).trim() : '';
+      };
+
+      const mapped = rows.map(row => ({
+        name:       findCol(row, ['اسم', 'الاسم', 'name']),
+        phone:      findCol(row, ['جوال', 'هاتف', 'phone', 'mobile', 'tel']),
+        companions: parseInt(findCol(row, ['مرافق', 'companions', 'accomp'])) || 0,
+      })).filter(r => r.name && r.phone);
+
+      if (!mapped.length) {
+        setToast({ message: 'تأكد من أن الملف يحتوي على أعمدة: الاسم، رقم الجوال', type: 'error' });
+        return;
+      }
+
+      setPendingGuests(prev => [...prev, ...mapped]);
+      setToast({ message: `تم إضافة ${mapped.length} مدعو من الملف`, type: 'success' });
+    } catch {
+      setToast({ message: 'تعذر قراءة الملف، تأكد من صيغة Excel', type: 'error' });
+    }
+    e.target.value = '';
   }
 
   function handleVCFUpload(e) {
@@ -469,6 +512,28 @@ export default function EventDetailPage() {
                     type="file"
                     accept=".vcf,text/vcard,text/x-vcard"
                     onChange={handleVCFUpload}
+                    style={{ display: 'none' }}
+                  />
+                  <button
+                    onClick={() => xlsxInputRef.current?.click()}
+                    style={{
+                      background: 'rgba(76,175,80,0.15)',
+                      color: '#81c784',
+                      border: '1px solid rgba(76,175,80,0.3)',
+                      borderRadius: 10,
+                      padding: '8px 16px',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    📊 استيراد Excel
+                  </button>
+                  <input
+                    ref={xlsxInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleExcelUpload}
                     style={{ display: 'none' }}
                   />
                   <button
