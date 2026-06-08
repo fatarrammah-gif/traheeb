@@ -100,17 +100,10 @@ export async function POST(request, { params }) {
   }
 }
 
-/** Build a Google Maps link for the event location. */
-function buildLocationLink(event) {
-  if (event.map_lat && event.map_lng) {
-    return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
-  }
-  const query = [event.venue, event.location].filter(Boolean).join(' ');
-  return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
-}
 
 async function sendInvitations(event, guests) {
-  const locationLink = buildLocationLink(event);
+  // Short redirect URL — clean in WhatsApp, resolves to Google Maps on tap
+  const locationLink = `${BASE_URL}/api/loc/${event.id}`;
 
   for (const guest of guests) {
     const companionsLabel = String(guest.companions || 0);
@@ -125,7 +118,7 @@ async function sendInvitations(event, guests) {
         time: event.time || '-',
         venueName: event.venue || '-',
         companionsLabel: companionsLabel || '0',
-        locationLink,                              // Google Maps URL → template {{link}}
+        locationLink,                              // short redirect → template {{link}}
         imageUrl: event.invitation_media_url || null,
         invitationToken: guest.invitation_token,
       });
