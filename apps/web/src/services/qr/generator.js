@@ -210,223 +210,39 @@ export async function generateQRCard({
   const hasBg = !!bgBuffer;
 
   if (hasBg) {
-    // ── Background image mode ──────────────────────────────────────────────
-    // Layout uses fixed percentages: header=25%, footer=14%, middle=61%
-    // Middle split: top-texts=30%, qr=44.5%, bot-texts=25.5%
+    // ── Background image mode — QR only, no text ───────────────────────────
     const bg = computeBgLayout(CARD_H);
 
-    // Draw background image stretched to fill the card
     const bgFilled = await sharp(bgBuffer)
       .resize(CARD_W, CARD_H, { fit: 'fill' })
       .png().toBuffer();
     ctx.drawImage(await loadImage(bgFilled), 0, 0);
 
-    // QR white backing + QR image (scaled to bg layout size)
+    // QR white backing + image
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(bg.qrLeft, bg.qrTop, bg.qrSize, bg.qrSize);
     ctx.drawImage(qrCanvas, bg.qrLeft, bg.qrTop, bg.qrSize, bg.qrSize);
 
-    // Golden border around QR
-    const bx = bg.qrLeft - BORDER_PAD, by = bg.qrTop - BORDER_PAD;
-    const bw = bg.qrSize + BORDER_PAD * 2, bh = bg.qrSize + BORDER_PAD * 2;
-    const goldGrad = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
-    goldGrad.addColorStop(0,    '#FFF5A0');
-    goldGrad.addColorStop(0.35, '#DAA520');
-    goldGrad.addColorStop(0.7,  '#C8860A');
-    goldGrad.addColorStop(1,    '#FFE070');
-    ctx.strokeStyle = goldGrad;
-    ctx.lineWidth   = 8;
-    roundedRect(ctx, bx, by, bw, bh, 16);
-    ctx.stroke();
-
-    // ── Text ────────────────────────────────────────────────────────────────
-    ctx.direction = 'rtl';
-
-    const ticketLabel = label === 'main'
-      ? 'تذكرة دخول: المستضيف الرئيسي'
-      : 'تذكرة دخول: مرافق';
-
-    // Ticket label — 34px Amiri, black, with underline (smaller to fit 20% band)
-    ctx.font      = `34px ${_fontFamily}`;
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'center';
-    const labelStr   = ar(ticketLabel);
-    const labelWidth = ctx.measureText(labelStr).width;
-    ctx.fillText(labelStr, CARD_W / 2, bg.labelY);
-    ctx.save();
-    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(CARD_W / 2 - labelWidth / 2, bg.labelY + 6);
-    ctx.lineTo(CARD_W / 2 + labelWidth / 2, bg.labelY + 6);
-    ctx.stroke();
-    ctx.restore();
-
-    // Event name — 22px Amiri
-    ctx.font      = `22px ${_fontFamily}`;
-    ctx.fillStyle = darkColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, bg.nameY);
-
-    // Date + Time with icons — 32px Cairo bold
-    const BG_ICON_SZ = 28, BG_ICON_GAP = 12;
-    ctx.font = `bold 32px ${_dateTimeFontFamily}`;
-
-    const bgDateStr = arSmart(String(eventDate ?? ''));
-    const bgTimeStr = arSmart(normalizeAmPm(String(eventTime ?? '')));
-    const bgDateW   = ctx.measureText(bgDateStr).width;
-    const bgTimeW   = ctx.measureText(bgTimeStr).width;
-
-    const bgBlockW    = Math.max(bgDateW, bgTimeW) + BG_ICON_GAP + BG_ICON_SZ;
-    const bgBlockLeft = Math.round(CARD_W / 2 - bgBlockW / 2);
-    const bgTextRight = bgBlockLeft + Math.max(bgDateW, bgTimeW);
-    const bgIconLeft  = bgTextRight + BG_ICON_GAP;
-
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'right';
-
-    ctx.direction = 'rtl';
-    drawCalendarIcon(ctx, bgIconLeft, bg.dateY - BG_ICON_SZ, GOLD_TEXT, BG_ICON_SZ);
-    ctx.fillText(bgDateStr, bgTextRight, bg.dateY);
-
-    ctx.direction = 'ltr';
-    drawClockIcon(ctx, bgIconLeft, bg.timeY - BG_ICON_SZ, GOLD_TEXT, BG_ICON_SZ);
-    ctx.fillText(bgTimeStr, bgTextRight, bg.timeY);
-
-    ctx.direction = 'rtl';
-
-    // Token code — 22px monospace
-    const bgTokenDisplay = token.slice(0, 12).toUpperCase()
-      .replace(/(.{4})/g, '$1 ').trim();
-    ctx.font      = 'bold 22px monospace';
-    ctx.fillStyle = darkColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(bgTokenDisplay, CARD_W / 2, bg.tokenY);
-
-    // Stub text — 20px Amiri bold, small gap above
-    ctx.font      = `bold 20px ${_fontFamily}`;
-    ctx.fillStyle = darkColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, bg.stubY);
-
-    console.log(`[generator] bg mode: headerEnd=${bg.headerEnd} footerStart=${bg.footerStart} qrTop=${bg.qrTop} qrSize=${bg.qrSize}`);
+    // Golden border
+    drawGoldBorder(ctx, bg.qrLeft - BORDER_PAD, bg.qrTop - BORDER_PAD,
+                        bg.qrSize + BORDER_PAD * 2, bg.qrSize + BORDER_PAD * 2);
 
   } else {
-    // ── Default ticket mode ────────────────────────────────────────────────
-    // Solid background with golden decorations
+    // ── Default mode — QR only, centered vertically, no text ──────────────
     ctx.fillStyle = lightBg;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
-    ctx.fillStyle = GOLD_STUB_BG;
-    ctx.fillRect(0, PERF_Y, CARD_W, CARD_H - PERF_Y);
 
-    // QR white backing + QR image
+    // Center QR vertically
+    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2);
+    const qrLeft = QR_LEFT;
+
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(QR_LEFT, QR_TOP, QR_SIZE, QR_SIZE);
-    ctx.drawImage(qrCanvas, QR_LEFT, QR_TOP);
+    ctx.fillRect(qrLeft, qrTop, QR_SIZE, QR_SIZE);
+    ctx.drawImage(qrCanvas, qrLeft, qrTop);
 
-    // Golden border around QR
-    const bx = QR_LEFT - BORDER_PAD, by = QR_TOP - BORDER_PAD;
-    const bw = QR_SIZE + BORDER_PAD * 2, bh = QR_SIZE + BORDER_PAD * 2;
-    const goldGrad = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
-    goldGrad.addColorStop(0,    '#FFF5A0');
-    goldGrad.addColorStop(0.35, '#DAA520');
-    goldGrad.addColorStop(0.7,  '#C8860A');
-    goldGrad.addColorStop(1,    '#FFE070');
-    ctx.strokeStyle = goldGrad;
-    ctx.lineWidth   = 8;
-    roundedRect(ctx, bx, by, bw, bh, 16);
-    ctx.stroke();
-
-    // Dashed separator
-    ctx.save();
-    ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 3.5; ctx.setLineDash([5, 6]);
-    ctx.beginPath(); ctx.moveTo(80, 135); ctx.lineTo(CARD_W - 80, 135); ctx.stroke();
-    ctx.restore();
-
-    // Perforated line
-    ctx.save();
-    ctx.strokeStyle = GOLD_LINE; ctx.lineWidth = 4; ctx.setLineDash([10, 7]);
-    ctx.beginPath(); ctx.moveTo(32, PERF_Y); ctx.lineTo(CARD_W - 32, PERF_Y); ctx.stroke();
-    ctx.restore();
-
-    // Notch semicircles
-    ctx.fillStyle = lightBg;
-    ctx.beginPath(); ctx.arc(0,      PERF_Y, 16, -Math.PI / 2, Math.PI / 2);  ctx.fill();
-    ctx.beginPath(); ctx.arc(CARD_W, PERF_Y, 16,  Math.PI / 2, -Math.PI / 2); ctx.fill();
-
-    // ── Text ──────────────────────────────────────────────────────────────
-    ctx.direction = 'rtl';
-
-    const ticketLabel = label === 'main'
-      ? 'تذكرة دخول: المستضيف الرئيسي'
-      : 'تذكرة دخول: مرافق';
-
-    // Ticket label — enlarged, black, with underline
-    ctx.font      = `42px ${_fontFamily}`;
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'center';
-    const labelStr   = ar(ticketLabel);
-    const labelWidth = ctx.measureText(labelStr).width;
-    ctx.fillText(labelStr, CARD_W / 2, 68);
-    ctx.save();
-    ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(CARD_W / 2 - labelWidth / 2, 75);
-    ctx.lineTo(CARD_W / 2 + labelWidth / 2, 75);
-    ctx.stroke();
-    ctx.restore();
-
-    // Event name
-    ctx.font      = `28px ${_fontFamily}`;
-    ctx.fillStyle = darkColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 118);
-
-    // ── Date + Time ──────────────────────────────────────────────────────────
-    const DATE_Y  = 213, TIME_Y = 281;
-    const ICON_SZ = 36, ICON_GAP = 14;
-    const DT_FONT = `bold 52px ${_dateTimeFontFamily}`;
-
-    ctx.font = DT_FONT;
-
-    const dateStr = arSmart(String(eventDate ?? ''));
-    const timeStr = arSmart(normalizeAmPm(String(eventTime ?? '')));
-    const dateW   = ctx.measureText(dateStr).width;
-    const timeW   = ctx.measureText(timeStr).width;
-
-    const blockTextW = Math.max(dateW, timeW);
-    const blockW     = blockTextW + ICON_GAP + ICON_SZ;
-    const blockLeft  = Math.round(CARD_W / 2 - blockW / 2);
-    const textRight  = blockLeft + blockTextW;
-    const iconLeft   = textRight + ICON_GAP;
-
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'right';
-
-    // Date — RTL direction
-    ctx.direction = 'rtl';
-    drawCalendarIcon(ctx, iconLeft, DATE_Y - 38, GOLD_TEXT, ICON_SZ);
-    ctx.fillText(dateStr, textRight, DATE_Y);
-
-    // Time — LTR so "7:00 AM" renders with AM on the right
-    ctx.direction = 'ltr';
-    drawClockIcon(ctx, iconLeft, TIME_Y - 38, GOLD_TEXT, ICON_SZ);
-    ctx.fillText(timeStr, textRight, TIME_Y);
-
-    ctx.direction = 'rtl';
-
-    // Token code
-    const tokenDisplay = token.slice(0, 12).toUpperCase()
-      .replace(/(.{4})/g, '$1 ').trim();
-    ctx.font      = 'bold 28px monospace';
-    ctx.fillStyle = darkColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(tokenDisplay, CARD_W / 2, 878);
-
-    // Stub text
-    ctx.font      = `bold 26px ${_fontFamily}`;
-    ctx.fillStyle = darkColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 55);
+    // Golden border
+    drawGoldBorder(ctx, qrLeft - BORDER_PAD, qrTop - BORDER_PAD,
+                        QR_SIZE + BORDER_PAD * 2, QR_SIZE + BORDER_PAD * 2);
   }
 
   const card = canvas.toBuffer('image/png');
@@ -435,6 +251,18 @@ export async function generateQRCard({
 }
 
 // ── Drawing helpers ────────────────────────────────────────────────────────────
+
+function drawGoldBorder(ctx, x, y, w, h) {
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0,    '#FFF5A0');
+  grad.addColorStop(0.35, '#DAA520');
+  grad.addColorStop(0.7,  '#C8860A');
+  grad.addColorStop(1,    '#FFE070');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth   = 8;
+  roundedRect(ctx, x, y, w, h, 16);
+  ctx.stroke();
+}
 
 function roundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath();

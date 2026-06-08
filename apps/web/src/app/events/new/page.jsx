@@ -31,13 +31,35 @@ function FieldGroup({ label, children }) {
   );
 }
 
+async function pdfToBlob(file) {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 2 });
+  const canvas = document.createElement('canvas');
+  canvas.width  = Math.round(viewport.width);
+  canvas.height = Math.round(viewport.height);
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+}
+
 function FileUploadField({ label, fieldKey, uploadedUrls, setUploadedUrls, uploading, setUploading }) {
   async function handleFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const raw = e.target.files?.[0];
+    if (!raw) return;
 
     setUploading((prev) => ({ ...prev, [fieldKey]: true }));
     try {
+      // Convert PDF to image before uploading
+      let file = raw;
+      if (raw.type === 'application/pdf' || raw.name.toLowerCase().endsWith('.pdf')) {
+        const blob = await pdfToBlob(raw);
+        file = new File([blob], raw.name.replace(/\.pdf$/i, '.jpg'), { type: 'image/jpeg' });
+      }
+
       const token = useWebAuth.getState().token;
       const formData = new FormData();
       formData.append('file', file);
@@ -52,8 +74,8 @@ function FileUploadField({ label, fieldKey, uploadedUrls, setUploadedUrls, uploa
       } else {
         alert('فشل رفع الصورة: ' + (data.error || 'خطأ غير معروف'));
       }
-    } catch {
-      alert('حدث خطأ أثناء رفع الصورة');
+    } catch (err) {
+      alert('حدث خطأ أثناء رفع الملف: ' + err.message);
     } finally {
       setUploading((prev) => ({ ...prev, [fieldKey]: false }));
     }
@@ -87,7 +109,7 @@ function FileUploadField({ label, fieldKey, uploadedUrls, setUploadedUrls, uploa
             </p>
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,application/pdf"
               onChange={handleFileChange}
               style={{
                 position: 'absolute',
