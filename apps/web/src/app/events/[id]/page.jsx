@@ -119,10 +119,7 @@ export default function EventDetailPage() {
   const [pendingGuests, setPendingGuests] = useState([]);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(null);
-  const [contactsSupported] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return 'contacts' in navigator;
-  });
+  const [contactsSupported, setContactsSupported] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
@@ -133,6 +130,10 @@ export default function EventDetailPage() {
       window.location.href = '/login';
     }
   }, [token]);
+
+  useEffect(() => {
+    setContactsSupported('contacts' in navigator);
+  }, []);
 
   useEffect(() => {
     if (!token || !id) return;
