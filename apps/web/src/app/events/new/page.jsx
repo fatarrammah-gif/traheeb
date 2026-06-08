@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useWebAuth, authFetch } from '../../../utils/webAuth.js';
 
 const inputStyle = {
@@ -134,19 +134,190 @@ function FileUploadField({ label, fieldKey, uploadedUrls, setUploadedUrls, uploa
   );
 }
 
+function LocationPicker({ value, onChange }) {
+  const [query, setQuery]       = useState('');
+  const [results, setResults]   = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [picked, setPicked]     = useState(value || null); // { label, lat, lng }
+  const debounceRef = useRef(null);
+
+  async function search(q) {
+    if (!q.trim()) { setResults([]); return; }
+    setSearching(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'ar,en' } });
+      const data = await res.json();
+      setResults(data);
+    } catch { setResults([]); }
+    finally { setSearching(false); }
+  }
+
+  function handleInput(e) {
+    const q = e.target.value;
+    setQuery(q);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(q), 500);
+  }
+
+  function pick(item) {
+    const loc = {
+      label: item.display_name,
+      lat:   parseFloat(item.lat),
+      lng:   parseFloat(item.lon),
+    };
+    setPicked(loc);
+    setResults([]);
+    setQuery('');
+    onChange(loc);
+  }
+
+  function reset() {
+    setPicked(null);
+    onChange(null);
+    setQuery('');
+    setResults([]);
+  }
+
+  const mapSrc = picked
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${picked.lng - 0.01},${picked.lat - 0.01},${picked.lng + 0.01},${picked.lat + 0.01}&layer=mapnik&marker=${picked.lat},${picked.lng}`
+    : null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {picked ? (
+        <div style={{
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 10,
+          overflow: 'hidden',
+        }}>
+          {/* Map preview */}
+          <iframe
+            src={mapSrc}
+            width="100%"
+            height="200"
+            style={{ border: 'none', display: 'block' }}
+            title="موقع الفعالية"
+          />
+          {/* Location label + change button */}
+          <div style={{
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5, flex: 1 }}>
+              📍 {picked.label}
+            </span>
+            <button
+              type="button"
+              onClick={reset}
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                color: 'rgba(255,255,255,0.55)',
+                fontSize: 12,
+                padding: '4px 10px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              تغيير
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={query}
+              onChange={handleInput}
+              placeholder="ابحث عن الموقع أو أدخل العنوان..."
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <button
+              type="button"
+              onClick={() => search(query)}
+              disabled={searching}
+              style={{
+                background: '#C8005A',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '0 18px',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                opacity: searching ? 0.7 : 1,
+              }}
+            >
+              {searching ? '...' : 'بحث'}
+            </button>
+          </div>
+          {results.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              left: 0,
+              background: '#2a0018',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 10,
+              zIndex: 50,
+              maxHeight: 260,
+              overflowY: 'auto',
+              marginTop: 4,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+              {results.map((item) => (
+                <button
+                  key={item.place_id}
+                  type="button"
+                  onClick={() => pick(item)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '11px 14px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px solid rgba(255,255,255,0.07)',
+                    color: '#fff',
+                    fontSize: 13,
+                    textAlign: 'right',
+                    cursor: 'pointer',
+                    lineHeight: 1.4,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(200,0,90,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  📍 {item.display_name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NewEventPage() {
   const token = useWebAuth((s) => s.token);
 
+  const [mapLocation, setMapLocation] = useState(null); // { label, lat, lng }
   const [form, setForm] = useState({
     name: '',
     date: '',
     time: '',
     venue: '',
-    location: '',
     capacity: '',
     invitation_text: '',
-    map_lat: '',
-    map_lng: '',
   });
   const [uploadedUrls, setUploadedUrls] = useState({
     event_logo_url: '',
@@ -178,11 +349,11 @@ export default function NewEventPage() {
       date: form.date,
       time: form.time,
       venue: form.venue,
-      location: form.location,
+      location: mapLocation?.label || '',
       capacity: form.capacity ? parseInt(form.capacity) : undefined,
       invitation_text: form.invitation_text,
-      map_lat: form.map_lat ? parseFloat(form.map_lat) : undefined,
-      map_lng: form.map_lng ? parseFloat(form.map_lng) : undefined,
+      map_lat: mapLocation?.lat || undefined,
+      map_lng: mapLocation?.lng || undefined,
       event_logo_url: uploadedUrls.event_logo_url || undefined,
       invitation_media_url: uploadedUrls.invitation_media_url || undefined,
       qr_background_url: uploadedUrls.qr_background_url || undefined,
@@ -296,15 +467,8 @@ export default function NewEventPage() {
             />
           </FieldGroup>
 
-          <FieldGroup label="العنوان / المدينة *">
-            <input
-              type="text"
-              name="location"
-              value={form.location}
-              onChange={handleChange}
-              required
-              style={inputStyle}
-            />
+          <FieldGroup label="موقع الفعالية على الخريطة">
+            <LocationPicker value={mapLocation} onChange={setMapLocation} />
           </FieldGroup>
 
           <FieldGroup label="عدد المدعوين *">
@@ -329,29 +493,6 @@ export default function NewEventPage() {
               style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
             />
           </FieldGroup>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <FieldGroup label="خط العرض (اختياري)">
-              <input
-                type="number"
-                name="map_lat"
-                value={form.map_lat}
-                onChange={handleChange}
-                step="any"
-                style={inputStyle}
-              />
-            </FieldGroup>
-            <FieldGroup label="خط الطول (اختياري)">
-              <input
-                type="number"
-                name="map_lng"
-                value={form.map_lng}
-                onChange={handleChange}
-                step="any"
-                style={inputStyle}
-              />
-            </FieldGroup>
-          </div>
 
           <div
             style={{
