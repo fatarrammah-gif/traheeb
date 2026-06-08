@@ -134,73 +134,137 @@ function FileUploadField({ label, fieldKey, uploadedUrls, setUploadedUrls, uploa
   );
 }
 
+function extractCoordsFromGoogleUrl(url) {
+  // Format: @lat,lng,zoom  (most share links)
+  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+  // Format: q=lat,lng
+  const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+  // Format: query=lat,lng
+  const queryMatch = url.match(/query=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (queryMatch) return { lat: parseFloat(queryMatch[1]), lng: parseFloat(queryMatch[2]) };
+  return null;
+}
+
 function LocationPicker({ value, onChange }) {
-  const [query, setQuery]       = useState('');
-  const [results, setResults]   = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [picked, setPicked]     = useState(value || null); // { label, lat, lng }
-  const debounceRef = useRef(null);
+  const [url, setUrl]     = useState('');
+  const [picked, setPicked] = useState(value || null);
+  const [err, setErr]     = useState('');
 
-  async function search(q) {
-    if (!q.trim()) { setResults([]); return; }
-    setSearching(true);
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`;
-      const res = await fetch(url, { headers: { 'Accept-Language': 'ar,en' } });
-      const data = await res.json();
-      setResults(data);
-    } catch { setResults([]); }
-    finally { setSearching(false); }
+  function handlePaste(e) {
+    const pasted = (e.clipboardData?.getData('text') || '').trim();
+    if (pasted) apply(pasted);
   }
 
-  function handleInput(e) {
-    const q = e.target.value;
-    setQuery(q);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(q), 500);
-  }
-
-  function pick(item) {
-    const loc = {
-      label: item.display_name,
-      lat:   parseFloat(item.lat),
-      lng:   parseFloat(item.lon),
-    };
-    setPicked(loc);
-    setResults([]);
-    setQuery('');
-    onChange(loc);
+  function apply(rawUrl) {
+    setErr('');
+    const coords = extractCoordsFromGoogleUrl(rawUrl);
+    if (coords) {
+      const loc = { label: rawUrl, lat: coords.lat, lng: coords.lng };
+      setPicked(loc);
+      setUrl('');
+      onChange(loc);
+    } else {
+      // No coords found — store URL as plain location label
+      const loc = { label: rawUrl, lat: null, lng: null };
+      setPicked(loc);
+      setUrl('');
+      onChange(loc);
+    }
   }
 
   function reset() {
     setPicked(null);
+    setUrl('');
+    setErr('');
     onChange(null);
-    setQuery('');
-    setResults([]);
   }
 
-  const mapSrc = picked
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${picked.lng - 0.01},${picked.lat - 0.01},${picked.lng + 0.01},${picked.lat + 0.01}&layer=mapnik&marker=${picked.lat},${picked.lng}`
+  const previewSrc = picked?.lat
+    ? `https://maps.google.com/maps?q=${picked.lat},${picked.lng}&z=15&output=embed`
     : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {picked ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Step 1 — open Google Maps */}
+      <a
+        href="https://maps.google.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'rgba(66,133,244,0.15)',
+          color: '#7ab3ff',
+          border: '1px solid rgba(66,133,244,0.3)',
+          borderRadius: 10,
+          padding: '10px 16px',
+          fontSize: 14,
+          fontWeight: 600,
+          textDecoration: 'none',
+          width: 'fit-content',
+        }}
+      >
+        🗺️ افتح Google Maps
+      </a>
+
+      <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+        ابحث عن الموقع في Google Maps ← اضغط مشاركة (Share) ← انسخ الرابط ← الصقه هنا
+      </p>
+
+      {/* Step 2 — paste link */}
+      {!picked && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="text"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            onPaste={handlePaste}
+            placeholder="الصق رابط Google Maps هنا..."
+            style={{ ...inputStyle, flex: 1, direction: 'ltr', textAlign: 'right' }}
+          />
+          <button
+            type="button"
+            onClick={() => apply(url)}
+            style={{
+              background: '#C8005A',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              padding: '0 16px',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            تأكيد
+          </button>
+        </div>
+      )}
+
+      {err && <p style={{ margin: 0, fontSize: 13, color: '#ff6b6b' }}>{err}</p>}
+
+      {/* Preview */}
+      {picked && (
         <div style={{
           background: 'rgba(255,255,255,0.06)',
           border: '1px solid rgba(255,255,255,0.15)',
           borderRadius: 10,
           overflow: 'hidden',
         }}>
-          {/* Map preview */}
-          <iframe
-            src={mapSrc}
-            width="100%"
-            height="200"
-            style={{ border: 'none', display: 'block' }}
-            title="موقع الفعالية"
-          />
-          {/* Location label + change button */}
+          {previewSrc && (
+            <iframe
+              src={previewSrc}
+              width="100%"
+              height="200"
+              style={{ border: 'none', display: 'block' }}
+              title="موقع الفعالية"
+              loading="lazy"
+            />
+          )}
           <div style={{
             padding: '10px 14px',
             display: 'flex',
@@ -208,8 +272,8 @@ function LocationPicker({ value, onChange }) {
             justifyContent: 'space-between',
             gap: 10,
           }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.5, flex: 1 }}>
-              📍 {picked.label}
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, flex: 1, wordBreak: 'break-all', direction: 'ltr' }}>
+              ✅ {picked.lat ? `${picked.lat}, ${picked.lng}` : picked.label}
             </span>
             <button
               type="button"
@@ -229,78 +293,6 @@ function LocationPicker({ value, onChange }) {
               تغيير
             </button>
           </div>
-        </div>
-      ) : (
-        <div style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              value={query}
-              onChange={handleInput}
-              placeholder="ابحث عن الموقع أو أدخل العنوان..."
-              style={{ ...inputStyle, flex: 1 }}
-            />
-            <button
-              type="button"
-              onClick={() => search(query)}
-              disabled={searching}
-              style={{
-                background: '#C8005A',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 10,
-                padding: '0 18px',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                opacity: searching ? 0.7 : 1,
-              }}
-            >
-              {searching ? '...' : 'بحث'}
-            </button>
-          </div>
-          {results.length > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              right: 0,
-              left: 0,
-              background: '#2a0018',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: 10,
-              zIndex: 50,
-              maxHeight: 260,
-              overflowY: 'auto',
-              marginTop: 4,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-            }}>
-              {results.map((item) => (
-                <button
-                  key={item.place_id}
-                  type="button"
-                  onClick={() => pick(item)}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '11px 14px',
-                    background: 'transparent',
-                    border: 'none',
-                    borderBottom: '1px solid rgba(255,255,255,0.07)',
-                    color: '#fff',
-                    fontSize: 13,
-                    textAlign: 'right',
-                    cursor: 'pointer',
-                    lineHeight: 1.4,
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(200,0,90,0.15)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  📍 {item.display_name}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>
