@@ -101,30 +101,10 @@ export async function POST(request, { params }) {
 }
 
 
-function buildMapsUrl(event) {
-  if (event.map_lat && event.map_lng) {
-    return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
-  }
-  const query = [event.venue, event.location].filter(Boolean).join(' ');
-  return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
-}
-
-async function shortenUrl(longUrl) {
-  try {
-    // is.gd: free, no API key, instant redirect (no preview/spam page)
-    const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`);
-    if (!res.ok) throw new Error(`is.gd status ${res.status}`);
-    const short = (await res.text()).trim();
-    console.log(`[invite] shortened ${longUrl} → ${short}`);
-    return short;
-  } catch (err) {
-    console.warn('[invite] is.gd failed, using original URL:', err.message);
-    return longUrl;
-  }
-}
 
 async function sendInvitations(event, guests) {
-  const locationLink = await shortenUrl(buildMapsUrl(event));
+  // Use our own /api/loc/[id] redirect — instant 302 to Google Maps, no third-party
+  const locationLink = `${BASE_URL}/api/loc/${event.id}`;
 
   for (const guest of guests) {
     const companionsLabel = String(guest.companions || 0);
