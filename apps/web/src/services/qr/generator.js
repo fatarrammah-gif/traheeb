@@ -43,6 +43,17 @@ function arSmart(text) {
   return hasArabic ? ar(s) : s;
 }
 
+// Replace Arabic AM/PM markers with English equivalents before rendering.
+function normalizeAmPm(text) {
+  return String(text ?? '')
+    .replace(/صباحاً|صباحا|صباح/g, 'AM')
+    .replace(/مساءً|مساءا|مساء/g, 'PM')
+    .replace(/ ص( |$)/g, ' AM$1')
+    .replace(/ م( |$)/g, ' PM$1')
+    .replace(/^ص( |$)/g, 'AM$1')
+    .replace(/^م( |$)/g, 'PM$1');
+}
+
 // ── Fonts committed to repo — zero system dependencies ───────────────────────
 // Amiri: classical Arabic typeface, full Presentation Forms → body/label text
 // Cairo: modern geometric Arabic typeface → date/time (distinct style)
@@ -210,30 +221,40 @@ export async function generateQRCard({
     ? 'تذكرة دخول: المستضيف الرئيسي'
     : 'تذكرة دخول: مرافق';
 
-  // Ticket label — regular weight, logo dark color
-  ctx.font      = `34px ${_fontFamily}`;
-  ctx.fillStyle = darkColor;
+  // Ticket label — enlarged, black, with underline
+  ctx.font      = `42px ${_fontFamily}`;
+  ctx.fillStyle = '#000000';
   ctx.textAlign = 'center';
-  ctx.fillText(ar(ticketLabel), CARD_W / 2, 62);
+  const labelStr   = ar(ticketLabel);
+  const labelWidth = ctx.measureText(labelStr).width;
+  ctx.fillText(labelStr, CARD_W / 2, 68);
+  // Underline drawn manually (canvas has no text-decoration)
+  ctx.save();
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(CARD_W / 2 - labelWidth / 2, 75);
+  ctx.lineTo(CARD_W / 2 + labelWidth / 2, 75);
+  ctx.stroke();
+  ctx.restore();
 
-  // Event name — enlarged, regular, logo dark color
+  // Event name
   ctx.font      = `28px ${_fontFamily}`;
   ctx.fillStyle = darkColor;
   ctx.textAlign = 'center';
-  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 110);
+  ctx.fillText(ar(String(eventName ?? '')), CARD_W / 2, 118);
 
   // ── Date + Time — bold Cairo, black ─────────────────────────────────────────
   // Layout: both lines right-aligned to the same edge, block centered on card.
   // Icon sits immediately right of the text with a 6px gap.
   // Vertical: centered in space between separator (y=135) and QR top (y=360).
   const DATE_Y  = 213, TIME_Y = 281;
-  const ICON_SZ = 36, ICON_GAP = 6;
+  const ICON_SZ = 36, ICON_GAP = 14;
   const DT_FONT = `bold 52px ${_dateTimeFontFamily}`;
 
   ctx.font = DT_FONT;
 
   const dateStr = arSmart(String(eventDate ?? ''));
-  const timeStr = arSmart(String(eventTime ?? ''));
+  const timeStr = arSmart(normalizeAmPm(String(eventTime ?? '')));
   const dateW   = ctx.measureText(dateStr).width;
   const timeW   = ctx.measureText(timeStr).width;
 
