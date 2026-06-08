@@ -87,13 +87,13 @@ function ensureFont() {
   console.log(`[generator] fonts: Amiri-reg=${regPath ?? 'NOT FOUND'} Amiri-bold=${boldPath ?? 'NOT FOUND'} Cairo=${cairoPath ?? 'NOT FOUND'}`);
 }
 
-// ── Empty-zone detector ───────────────────────────────────────────────────────
-// Scans horizontal strips of the background image (resized to card height) and
-// finds the largest contiguous band of "light" rows — that is the empty area
-// where the QR code and info should be placed.
-async function detectEmptyZone(bgBuffer, cardH) {
+// ── Content-zone detector ─────────────────────────────────────────────────────
+// Measures per-row VARIANCE (design complexity) to locate the header and footer
+// regions. Headers/footers have high variance (logos, colours, patterns).
+// The empty middle area has low variance (plain/white background).
+async function detectContentZone(bgBuffer, cardH) {
   try {
-    const SAMPLE_W = 60;
+    const SAMPLE_W = 80;
     const { data, info } = await sharp(bgBuffer)
       .resize(SAMPLE_W, cardH, { fit: 'fill' })
       .grayscale()
@@ -102,40 +102,61 @@ async function detectEmptyZone(bgBuffer, cardH) {
 
     const h = info.height;
 
-    // Per-row average brightness (0–255)
-    const rowBright = Array.from({ length: h }, (_, y) => {
-      let s = 0;
-      for (let x = 0; x < SAMPLE_W; x++) s += data[y * SAMPLE_W + x];
-      return s / SAMPLE_W;
+    // Per-row variance (0 = perfectly uniform, high = complex design)
+    const rowVar = Array.from({ length: h }, (_, y) => {
+      let sum = 0, sumSq = 0;
+      for (let x = 0; x < SAMPLE_W; x++) {
+        const v = data[y * SAMPLE_W + x];
+        sum += v; sumSq += v * v;
+      }
+      const mean = sum / SAMPLE_W;
+      return sumSq / SAMPLE_W - mean * mean;
     });
 
-    // Smooth with an 11-row window to reduce noise
-    const smooth = rowBright.map((_, i) => {
+    // Smooth with a 15-row window
+    const smooth = rowVar.map((_, i) => {
       let s = 0, n = 0;
-      for (let k = Math.max(0, i - 5); k <= Math.min(h - 1, i + 5); k++) { s += rowBright[k]; n++; }
+      for (let k = Math.max(0, i - 7); k <= Math.min(h - 1, i + 7); k++) { s += rowVar[k]; n++; }
       return s / n;
     });
 
-    // Rows above the 45th-percentile brightness are considered "empty / light"
+    // Threshold = 40th-percentile variance → rows below this are "empty"
     const sorted = [...smooth].sort((a, b) => a - b);
-    const threshold = sorted[Math.floor(h * 0.45)];
+    const threshold = sorted[Math.floor(h * 0.40)];
 
-    // Find the largest contiguous block of light rows
-    let bestStart = 0, bestLen = 0, curStart = 0, curLen = 0;
+    // Header end: scan top-down; first stable run of low-variance rows
+    let headerEnd = 0;
     for (let y = 0; y < h; y++) {
-      if (smooth[y] >= threshold) {
-        if (curLen === 0) curStart = y;
-        if (++curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
-      } else {
-        curLen = 0;
-      }
+      if (smooth[y] > threshold) { headerEnd = y + 1; continue; }
+      // Check this low-variance run lasts at least 40 rows
+      let run = 0;
+      for (let k = y; k < Math.min(h, y + 40); k++) { if (smooth[k] <= threshold) run++; }
+      if (run >= 35) break;
+      headerEnd = y + 1;
     }
 
-    if (bestLen < 80) return { startY: 0, endY: cardH }; // no clear zone
-    console.log(`[generator] empty zone: rows ${bestStart}–${bestStart + bestLen}`);
-    return { startY: bestStart, endY: bestStart + bestLen };
+    // Footer start: scan bottom-up; same logic
+    let footerStart = h;
+    for (let y = h - 1; y >= 0; y--) {
+      if (smooth[y] > threshold) { footerStart = y; continue; }
+      let run = 0;
+      for (let k = y; k > Math.max(0, y - 40); k--) { if (smooth[k] <= threshold) run++; }
+      if (run >= 35) break;
+      footerStart = y;
+    }
+
+    const startY = Math.min(headerEnd + 8, Math.floor(h * 0.35));
+    const endY   = Math.max(footerStart - 8, Math.floor(h * 0.65));
+
+    if (startY >= endY - 80) {
+      console.warn('[generator] zone detection inconclusive, using full card');
+      return { startY: 0, endY: cardH };
+    }
+
+    console.log(`[generator] zone: header ends ${headerEnd}, footer starts ${footerStart} → content ${startY}–${endY}`);
+    return { startY, endY };
   } catch (err) {
-    console.warn('[generator] detectEmptyZone error:', err.message);
+    console.warn('[generator] detectContentZone error:', err.message);
     return { startY: 0, endY: cardH };
   }
 }
@@ -231,23 +252,21 @@ export async function generateQRCard({
   let yOff = 0;  // vertical shift applied to all content via ctx.translate
 
   if (hasBg) {
-    // Draw the image filling the full card (cover = no distortion, minimal crop)
+    // Draw the full image stretched to fill the card (no cropping, no forced square)
     const bgFilled = await sharp(bgBuffer)
-      .resize(CARD_W, CARD_H, { fit: 'cover', position: 'centre' })
+      .resize(CARD_W, CARD_H, { fit: 'fill' })
       .png().toBuffer();
     ctx.drawImage(await loadImage(bgFilled), 0, 0);
 
-    // Detect the largest empty (lightest) band in the image
-    const zone       = await detectEmptyZone(bgBuffer, CARD_H);
+    // Detect where header ends and footer starts using variance analysis
+    const zone       = await detectContentZone(bgBuffer, CARD_H);
     const zoneCenter = (zone.startY + zone.endY) / 2;
-    // Natural center of the QR block in the default layout
-    const naturalQrCenter = QR_TOP + QR_SIZE / 2;   // 360 + 220 = 580
+    const naturalQrCenter = QR_TOP + QR_SIZE / 2;  // 360 + 220 = 580
     yOff = Math.round(zoneCenter - naturalQrCenter);
-    // Clamp so content stays on card
-    const contentTop    = 18 + yOff;   // approx top of ticket label
-    const contentBottom = QR_TOP + QR_SIZE + 60 + yOff; // approx bottom of token
-    if (contentTop < 10) yOff -= contentTop - 10;
-    if (contentBottom > CARD_H - 10) yOff -= contentBottom - (CARD_H - 10);
+    // Clamp: ensure ticket label (≈y=18) and stub text (≈y=995) stay on card
+    let cTop = 18 + yOff, cBot = (PERF_Y + 55) + yOff;
+    if (cTop < 10)           yOff -= cTop - 10;
+    if (cBot > CARD_H - 10)  yOff -= cBot - (CARD_H - 10);
     console.log(`[generator] bg mode: zone=${zone.startY}-${zone.endY} yOff=${yOff}`);
   } else {
     // Solid ticket background — draw before translate (no yOff needed)
@@ -350,11 +369,18 @@ export async function generateQRCard({
   ctx.fillStyle = '#000000';
   ctx.textAlign = 'right';
 
+  // Date — RTL direction (Arabic date text reads right-to-left)
+  ctx.direction = 'rtl';
   drawCalendarIcon(ctx, iconLeft, DATE_Y - 38, GOLD_TEXT, ICON_SZ);
   ctx.fillText(dateStr, textRight, DATE_Y);
 
+  // Time — LTR direction so "7:00 AM" renders left→right with AM at the right
+  ctx.direction = 'ltr';
   drawClockIcon(ctx, iconLeft, TIME_Y - 38, GOLD_TEXT, ICON_SZ);
   ctx.fillText(timeStr, textRight, TIME_Y);
+
+  // Restore RTL for remaining Arabic text
+  ctx.direction = 'rtl';
 
   // Token code
   const tokenDisplay = token.slice(0, 12).toUpperCase()
@@ -364,13 +390,11 @@ export async function generateQRCard({
   ctx.textAlign = 'center';
   ctx.fillText(tokenDisplay, CARD_W / 2, 878);
 
-  // Stub text — only for default (no-bg) design
-  if (!hasBg) {
-    ctx.font      = `bold 26px ${_fontFamily}`;
-    ctx.fillStyle = darkColor;
-    ctx.textAlign = 'center';
-    ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 55);
-  }
+  // Stub text — always shown (positioned below the QR stub line)
+  ctx.font      = `bold 26px ${_fontFamily}`;
+  ctx.fillStyle = darkColor;
+  ctx.textAlign = 'center';
+  ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, PERF_Y + 55);
 
   ctx.restore(); // end translate block
 
