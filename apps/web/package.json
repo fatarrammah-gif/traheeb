@@ -42,6 +42,7 @@
 		"hono": "^4.12.16",
 		"html-to-image": "^1.11.13",
 		"isbot": "^5.1.27",
+		"jsqr": "^1.4.0",
 		"lodash-es": "^4.17.21",
 		"lucide-react": "0.358.0",
 		"motion": "^12.7.4",
