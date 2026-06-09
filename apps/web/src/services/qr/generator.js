@@ -183,10 +183,10 @@ export async function generateQRCard({
   qrCtx.fillStyle = '#FFFFFF';
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   const grad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
-  // Match lightBg exactly — same soft light tone as the logo's light color
-  const qrColor = darkenHex(lightBg, 0.04);
-  grad.addColorStop(0, qrColor);
-  grad.addColorStop(1, lightBg);
+  // Dark modules on transparent background — ensures scanner contrast
+  const qrColor = darkColor;
+  grad.addColorStop(0, '#000000');
+  grad.addColorStop(1, darkColor);
   qrCtx.fillStyle = grad;
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   qrCtx.globalCompositeOperation = 'destination-in';
@@ -237,7 +237,10 @@ export async function generateQRCard({
     const qrYCenter = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
     const qrY = qrYCenter + 30;
 
-    // No white backing — QR floats over the background image (transparent bg)
+    // White backing ensures dark modules have maximum contrast for scanning
+    const backing = 12;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(qrX - backing, qrY - backing, qrPlaceSize + backing * 2, qrPlaceSize + backing * 2);
     ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
     // Serial number below QR — same color as QR modules, with clear gap
