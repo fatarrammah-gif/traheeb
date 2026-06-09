@@ -39,7 +39,11 @@ export async function GET(request, { params }) {
       ORDER BY g.created_at ASC
     `;
 
-    // Strip base64 media — mobile only needs to know if media exists
+    const url = new URL(request.url);
+    const full = url.searchParams.get('full') === '1';
+
+    // By default strip image URLs (mobile only needs to know if media exists).
+    // Pass ?full=1 (e.g. edit page) to get actual URLs.
     const { event_logo_url, invitation_media_url, qr_background_url, ...eventSafe } = event;
     return Response.json({
       event: {
@@ -47,6 +51,7 @@ export async function GET(request, { params }) {
         has_logo:  event_logo_url != null,
         has_media: invitation_media_url != null,
         has_qr_bg: qr_background_url != null,
+        ...(full ? { event_logo_url, invitation_media_url, qr_background_url } : {}),
       },
       guests,
     });

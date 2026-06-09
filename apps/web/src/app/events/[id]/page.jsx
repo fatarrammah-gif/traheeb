@@ -440,20 +440,21 @@ export default function EventDetailPage() {
               >
                 📷 مسح رمز QR
               </a>
-              <button
-                disabled
+              <a
+                href={`/events/${id}/edit`}
                 style={{
                   background: 'rgba(255,255,255,0.06)',
-                  color: 'rgba(255,255,255,0.4)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.85)',
+                  border: '1px solid rgba(255,255,255,0.2)',
                   borderRadius: 12,
                   padding: '12px 20px',
                   fontSize: 14,
-                  cursor: 'not-allowed',
+                  textDecoration: 'none',
+                  textAlign: 'center',
                 }}
               >
-                تعديل
-              </button>
+                ✏️ تعديل
+              </a>
             </div>
 
             {/* Guest section */}
