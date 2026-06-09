@@ -144,7 +144,8 @@ export default function ScanPage() {
     <div
       dir="rtl"
       style={{
-        minHeight: '100vh',
+        position: 'fixed',
+        inset: 0,
         background: '#0d0008',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         color: '#fff',
@@ -232,12 +233,12 @@ export default function ScanPage() {
               </div>
             )}
 
-            {/* Status hint */}
+            {/* Status hint — positioned below the scan frame, not from bottom */}
             {cameraReady && !result && (
               <div
                 style={{
                   position: 'absolute',
-                  bottom: 100,
+                  top: 'calc(50% + 140px)',
                   left: '50%',
                   transform: 'translateX(-50%)',
                   background: 'rgba(0,0,0,0.6)',
