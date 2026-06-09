@@ -169,44 +169,35 @@ export async function generateQRCard({
   const { r: dR, g: dG, b: dB } = hexToRgb(darkColor);
   const mutedRgba = `rgba(${dR},${dG},${dB},0.5)`;
 
-  // ── 2. Gradient QR code ─────────────────────────────────────────────────────
-  const qrSvg = await QRCode.toString(token, {
-    type: 'svg', width: QR_SIZE, margin: 0,
-    errorCorrectionLevel: 'H',
-    color: { dark: '#000000', light: '#FFFFFF00' },
+  // ── 2. QR code — solid white background, near-black modules (guaranteed scannable) ──
+  // Use PNG output directly: no SVG, no compositing, no transparency issues.
+  const qrPng = await QRCode.toBuffer(token, {
+    type: 'png',
+    width: QR_SIZE,
+    margin: 2,                  // quiet zone for scanner
+    errorCorrectionLevel: 'H', // high correction so logo overlay doesn't break it
+    color: { dark: '#111111', light: '#FFFFFF' },
   });
-  const qrTransparent = await sharp(Buffer.from(qrSvg))
-    .resize(QR_SIZE, QR_SIZE).png().toBuffer();
 
   const qrCanvas = createCanvas(QR_SIZE, QR_SIZE);
   const qrCtx   = qrCanvas.getContext('2d');
-  qrCtx.fillStyle = '#FFFFFF';
-  qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
-  const grad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
-  // Dark modules on transparent background — ensures scanner contrast
-  const qrColor = darkColor;
-  grad.addColorStop(0, '#000000');
-  grad.addColorStop(1, darkColor);
-  qrCtx.fillStyle = grad;
-  qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
-  qrCtx.globalCompositeOperation = 'destination-in';
-  qrCtx.drawImage(await loadImage(qrTransparent), 0, 0);
-  qrCtx.globalCompositeOperation = 'source-over';
+  qrCtx.drawImage(await loadImage(qrPng), 0, 0);
 
+  // Overlay logo in center (error correction H handles ~30% obstruction)
   if (logoBuffer) {
     const logoSize = Math.round(QR_SIZE * 0.18);
     const pad = 8;
-    // Fill transparent pixels with lightBg, then add padding with same color
-    const { r: lR, g: lG, b: lB } = hexToRgb(lightBg);
     const logoBuf = await sharp(logoBuffer)
       .resize(logoSize, logoSize, { fit: 'inside' })
-      .flatten({ background: { r: lR, g: lG, b: lB } })
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
       .extend({ top: pad, bottom: pad, left: pad, right: pad,
-                background: { r: lR, g: lG, b: lB, alpha: 1 } })
+                background: { r: 255, g: 255, b: 255, alpha: 1 } })
       .png().toBuffer();
     const offset = Math.round((QR_SIZE - logoSize - pad * 2) / 2);
     qrCtx.drawImage(await loadImage(logoBuf), offset, offset);
   }
+
+  const qrColor = darkColor; // serial number colour
 
   // ── 3. Main canvas ──────────────────────────────────────────────────────────
   const hasBg = !!bgBuffer;
@@ -237,10 +228,7 @@ export async function generateQRCard({
     const qrYCenter = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
     const qrY = qrYCenter + 30;
 
-    // White backing ensures dark modules have maximum contrast for scanning
-    const backing = 12;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(qrX - backing, qrY - backing, qrPlaceSize + backing * 2, qrPlaceSize + backing * 2);
+    // QR already has white background baked in — draw directly
     ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
     // Serial number below QR — same color as QR modules, with clear gap
