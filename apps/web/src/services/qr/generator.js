@@ -126,7 +126,7 @@ function computeBgLayout(cardH) {
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
 const CARD_H     = 1050;
-const QR_SIZE    = 440;
+const QR_SIZE    = 400;
 const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);
 const QR_TOP     = 360;   // lower QR → more space for enlarged header
 const BORDER_PAD = 12;
@@ -183,9 +183,9 @@ export async function generateQRCard({
   qrCtx.fillStyle = '#FFFFFF';
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   const grad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
-  // Very slightly darker than lightBg — soft light beige tone
-  grad.addColorStop(0, darkenHex(lightBg, 0.10));
-  grad.addColorStop(1, darkenHex(lightBg, 0.05));
+  // Match lightBg exactly — same soft light tone as the logo's light color
+  grad.addColorStop(0, darkenHex(lightBg, 0.04));
+  grad.addColorStop(1, lightBg);
   qrCtx.fillStyle = grad;
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   qrCtx.globalCompositeOperation = 'destination-in';
@@ -195,10 +195,12 @@ export async function generateQRCard({
   if (logoBuffer) {
     const logoSize = Math.round(QR_SIZE * 0.18);
     const pad = 8;
+    // Use lightBg color as logo background so it blends with the card tone
+    const { r: lR, g: lG, b: lB } = hexToRgb(lightBg);
     const logoBuf = await sharp(logoBuffer)
       .resize(logoSize, logoSize, { fit: 'inside' })
       .extend({ top: pad, bottom: pad, left: pad, right: pad,
-                background: { r: 255, g: 255, b: 255, alpha: 1 } })
+                background: { r: lR, g: lG, b: lB, alpha: 1 } })
       .png().toBuffer();
     const offset = Math.round((QR_SIZE - logoSize - pad * 2) / 2);
     qrCtx.drawImage(await loadImage(logoBuf), offset, offset);
@@ -249,12 +251,10 @@ export async function generateQRCard({
     ctx.fillStyle = lightBg;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
 
-    // Center QR vertically
-    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2);
+    // Center QR, shifted slightly upward
+    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2) - 60;
     const qrLeft = QR_LEFT;
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(qrLeft, qrTop, QR_SIZE, QR_SIZE);
     ctx.drawImage(qrCanvas, qrLeft, qrTop);
 
     // Golden border

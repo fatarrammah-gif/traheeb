@@ -39,10 +39,19 @@ export async function generateAndSendQRCards(guest) {
     ]);
     console.log(`[QR] images fetched logo=${logoBuffer?.length ?? 0}B bg=${bgBuffer?.length ?? 0}B`);
 
-    // Build label list
     const companions = Math.max(0, guest.companions ?? 0);
-    const labels = ['main', ...Array.from({ length: companions }, (_, i) => `companion-${i + 1}`)];
-    console.log(`[QR] will generate ${labels.length} card(s): ${labels.join(', ')}`);
+
+    // Create main token in DB (for door-scan tracking) but do NOT send an image
+    const mainToken = crypto.randomBytes(16).toString('hex');
+    await sql`
+      INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
+      VALUES (${guest.id}, ${guest.event_id}, ${mainToken}, 'main')
+    `;
+    console.log(`[QR] main token saved (no image sent)`);
+
+    // Send QR images only for companions
+    const labels = Array.from({ length: companions }, (_, i) => `companion-${i + 1}`);
+    console.log(`[QR] will send ${labels.length} companion card(s): ${labels.join(', ') || '(none)'}`);
 
     for (const label of labels) {
       try {
