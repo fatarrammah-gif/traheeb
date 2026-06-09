@@ -75,6 +75,14 @@ if (process.env.CORS_ORIGINS) {
     })
   );
 }
+// Image upload route — allow up to 50 MB so large PNGs pass through
+app.post(
+  '/api/upload/image',
+  bodyLimit({
+    maxSize: 50 * 1024 * 1024,
+    onError: (c) => c.json({ error: 'حجم الصورة كبير جداً (الحد الأقصى 50 ميغابايت)' }, 413),
+  })
+);
 // Events route carries base64 images — allow up to 20MB
 app.post(
   '/api/events',
