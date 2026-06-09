@@ -233,7 +233,7 @@ export async function generateQRCard({
 
     // Serial number — font proportional to QR size so it looks the same on any image
     const serialFont = Math.round(qrPlaceSize * 0.14);
-    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + Math.round(qrPlaceSize * 0.06), qrColor, serialFont);
+    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + Math.round(qrPlaceSize * 0.06), lightBg, serialFont);
 
   } else {
     // ── Default mode — QR only, centered, shifted upward ──────────────────
@@ -251,7 +251,7 @@ export async function generateQRCard({
 
     // Serial number — proportional to QR_SIZE for consistent look
     const serialFont = Math.round(QR_SIZE * 0.14);
-    drawSerialNumber(ctx, label, qrLeft + QR_SIZE / 2, qrTop + QR_SIZE + Math.round(QR_SIZE * 0.06), qrColor, serialFont);
+    drawSerialNumber(ctx, label, qrLeft + QR_SIZE / 2, qrTop + QR_SIZE + Math.round(QR_SIZE * 0.06), lightBg, serialFont);
   }
 
   const card = canvas.toBuffer('image/png');
