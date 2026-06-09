@@ -80,39 +80,50 @@ export default function ScanPage() {
         jsQR = mod.default;
 
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+          video: {
+            facingMode: 'environment',
+            width:  { ideal: 1280 },
+            height: { ideal: 720  },
+          },
         });
         streamRef.current = stream;
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play();
-          setCameraReady(true);
+          await videoRef.current.play();
         }
 
-        function tick() {
-          if (!videoRef.current || !canvasRef.current) return;
-          const video = videoRef.current;
-          const canvas = canvasRef.current;
+        // Wait for video dimensions to be available
+        await new Promise((resolve) => {
+          if (videoRef.current.readyState >= 1) { resolve(); return; }
+          videoRef.current.addEventListener('loadedmetadata', resolve, { once: true });
+        });
 
-          if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Set canvas size once at 640px wide (sufficient for QR, much faster than full res)
+        const SCAN_W = 640;
+        const SCAN_H = Math.round((videoRef.current.videoHeight / videoRef.current.videoWidth) * SCAN_W);
+        canvasRef.current.width  = SCAN_W;
+        canvasRef.current.height = SCAN_H;
+        setCameraReady(true);
 
-            if (scanningRef.current) {
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'dontInvert',
-              });
-              if (code && code.data) {
-                handleScan(code.data);
-              }
-            }
-          }
+        let lastScan = 0;
+        const SCAN_INTERVAL = 120; // ms — ~8 fps for scanning, smooth for the eye
 
+        function tick(now) {
           animFrameRef.current = requestAnimationFrame(tick);
+          if (!videoRef.current || !canvasRef.current) return;
+          if (videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) return;
+          if (!scanningRef.current) return;
+          if (now - lastScan < SCAN_INTERVAL) return;
+          lastScan = now;
+
+          const ctx = canvasRef.current.getContext('2d');
+          ctx.drawImage(videoRef.current, 0, 0, SCAN_W, SCAN_H);
+          const imageData = ctx.getImageData(0, 0, SCAN_W, SCAN_H);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth',
+          });
+          if (code?.data) handleScan(code.data);
         }
 
         animFrameRef.current = requestAnimationFrame(tick);
