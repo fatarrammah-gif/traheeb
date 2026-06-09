@@ -48,12 +48,20 @@ export async function GET(request, { params }) {
       WHERE id = ${guest.id}
     `;
 
-    // Generate QR tokens: 1 for guest + 1 per companion
     const companions = Math.max(0, guest.companions ?? 0);
-    const labels = ['main', ...Array.from({ length: companions }, (_, i) => `companion-${i + 1}`)];
+
+    // Create main token in DB for door-scan tracking (no image sent)
+    const mainToken = crypto.randomBytes(16).toString('hex');
+    await sql`
+      INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
+      VALUES (${guest.id}, ${guest.event_id}, ${mainToken}, 'main')
+    `;
+
+    // Only generate images for companions
+    const companionLabels = Array.from({ length: companions }, (_, i) => `companion-${i + 1}`);
     const qrTokens = [];
 
-    for (const label of labels) {
+    for (const label of companionLabels) {
       const token = crypto.randomBytes(16).toString('hex');
       const [qt] = await sql`
         INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
@@ -63,10 +71,12 @@ export async function GET(request, { params }) {
       qrTokens.push(qt);
     }
 
-    // Generate styled QR PNGs and send to guest via organizer's WhatsApp session (non-blocking)
-    generateAndSendQRs(guest, qrTokens).catch(err =>
-      console.error('[confirm] QR generation/send error:', err.message)
-    );
+    // Generate and send companion QR images (non-blocking; skipped when no companions)
+    if (qrTokens.length > 0) {
+      generateAndSendQRs(guest, qrTokens).catch(err =>
+        console.error('[confirm] QR generation/send error:', err.message)
+      );
+    }
 
     return Response.redirect(`${BASE_URL}/confirm/${params.token}?result=success`);
   } catch (err) {
