@@ -170,30 +170,63 @@ function extractCoordsFromGoogleUrl(url) {
 }
 
 function LocationPicker({ value, onChange }) {
-  const [url, setUrl]     = useState('');
-  const [picked, setPicked] = useState(value || null);
-  const [err, setErr]     = useState('');
+  const [url, setUrl]         = useState('');
+  const [picked, setPicked]   = useState(value || null);
+  const [err, setErr]         = useState('');
+  const [resolving, setResolving] = useState(false);
 
   function handlePaste(e) {
     const pasted = (e.clipboardData?.getData('text') || '').trim();
     if (pasted) apply(pasted);
   }
 
-  function apply(rawUrl) {
+  async function apply(rawUrl) {
     setErr('');
-    const coords = extractCoordsFromGoogleUrl(rawUrl);
-    if (coords) {
-      const loc = { label: rawUrl, lat: coords.lat, lng: coords.lng };
-      setPicked(loc);
-      setUrl('');
-      onChange(loc);
-    } else {
-      // No coords found — store URL as plain location label
-      const loc = { label: rawUrl, lat: null, lng: null };
-      setPicked(loc);
-      setUrl('');
-      onChange(loc);
+
+    // Try extracting coords directly (works for desktop share links with @lat,lng)
+    const direct = extractCoordsFromGoogleUrl(rawUrl);
+    if (direct) {
+      const loc = { label: rawUrl, lat: direct.lat, lng: direct.lng };
+      setPicked(loc); setUrl(''); onChange(loc);
+      return;
     }
+
+    // Look for a maps.app.goo.gl / goo.gl short URL inside the pasted text
+    // Mobile share links encode the short URL inside the q= param
+    const decoded  = (() => { try { return decodeURIComponent(rawUrl); } catch { return rawUrl; } })();
+    const shortMatch = decoded.match(/https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl)\/[^\s"'<>?]+(?:\?[^\s"'<>]*)? /)?.[0]?.trim()
+      ?? decoded.match(/https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl)\/[^\s"'<>]+/)?.[0];
+
+    // Also check if the raw URL itself is a short link
+    const urlToResolve = shortMatch
+      || (/maps\.app\.goo\.gl|goo\.gl/.test(rawUrl) ? rawUrl : null);
+
+    if (urlToResolve) {
+      setResolving(true);
+      try {
+        const res  = await fetch('/api/loc/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: urlToResolve }),
+        });
+        const data = await res.json();
+        if (data.coords) {
+          const loc = { label: data.finalUrl || rawUrl, lat: data.coords.lat, lng: data.coords.lng };
+          setPicked(loc); setUrl(''); onChange(loc);
+          return;
+        }
+        setErr('تعذّر استخراج الإحداثيات من الرابط');
+      } catch {
+        setErr('حدث خطأ أثناء قراءة الرابط');
+      } finally {
+        setResolving(false);
+      }
+      return;
+    }
+
+    // Fallback — store as plain label with no coordinates
+    const loc = { label: rawUrl, lat: null, lng: null };
+    setPicked(loc); setUrl(''); onChange(loc);
   }
 
   function reset() {
@@ -250,6 +283,7 @@ function LocationPicker({ value, onChange }) {
           <button
             type="button"
             onClick={() => apply(url)}
+            disabled={resolving}
             style={{
               background: '#C8005A',
               color: '#fff',
@@ -258,11 +292,12 @@ function LocationPicker({ value, onChange }) {
               padding: '0 16px',
               fontSize: 14,
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: resolving ? 'not-allowed' : 'pointer',
+              opacity: resolving ? 0.7 : 1,
               whiteSpace: 'nowrap',
             }}
           >
-            تأكيد
+            {resolving ? 'جارٍ التحقق...' : 'تأكيد'}
           </button>
         </div>
       )}
