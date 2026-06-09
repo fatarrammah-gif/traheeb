@@ -126,7 +126,7 @@ function computeBgLayout(cardH) {
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
 const CARD_H     = 1050;
-const QR_SIZE    = 400;
+const QR_SIZE    = 360;
 const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);
 const QR_TOP     = 360;   // lower QR → more space for enlarged header
 const BORDER_PAD = 12;
@@ -239,27 +239,25 @@ export async function generateQRCard({
     // No white backing — QR floats over the background image (transparent bg)
     ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
-    // Golden border
-    drawGoldBorder(ctx, qrX - BORDER_PAD, qrY - BORDER_PAD,
-                        qrPlaceSize + BORDER_PAD * 2, qrPlaceSize + BORDER_PAD * 2);
+    // Serial number below QR
+    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + 28, darkColor);
 
   } else {
-    // ── Default mode — QR only, centered vertically, no text ──────────────
+    // ── Default mode — QR only, centered, shifted upward ──────────────────
     canvas = createCanvas(CARD_W, CARD_H);
     ctx    = canvas.getContext('2d');
 
     ctx.fillStyle = lightBg;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
 
-    // Center QR, shifted slightly upward
-    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2) - 60;
+    // Shift QR above center
+    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2) - 100;
     const qrLeft = QR_LEFT;
 
     ctx.drawImage(qrCanvas, qrLeft, qrTop);
 
-    // Golden border
-    drawGoldBorder(ctx, qrLeft - BORDER_PAD, qrTop - BORDER_PAD,
-                        QR_SIZE + BORDER_PAD * 2, QR_SIZE + BORDER_PAD * 2);
+    // Serial number below QR
+    drawSerialNumber(ctx, label, qrLeft + QR_SIZE / 2, qrTop + QR_SIZE + 32, darkColor);
   }
 
   const card = canvas.toBuffer('image/png');
@@ -359,6 +357,25 @@ async function detectWhitePlaceholder(imgBuffer, imgW, imgH) {
     w: size,
     h: size,
   };
+}
+
+/**
+ * Draw a serial number badge "(N)" below the QR code.
+ * Only renders for companion-N labels; silently skips for 'main'.
+ */
+function drawSerialNumber(ctx, label, cx, cy, color) {
+  const match = label.match(/^companion-(\d+)$/);
+  if (!match) return;
+  const num = match[1];
+  const text = `( ${num} )`;
+
+  ctx.save();
+  ctx.font = 'bold 48px "Amiri", serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = color;
+  ctx.fillText(text, cx, cy);
+  ctx.restore();
 }
 
 function drawGoldBorder(ctx, x, y, w, h) {
