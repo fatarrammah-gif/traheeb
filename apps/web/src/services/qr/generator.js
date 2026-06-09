@@ -231,8 +231,9 @@ export async function generateQRCard({
     // QR already has white background baked in — draw directly
     ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
-    // Serial number below QR — same color as QR modules, with clear gap
-    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + 50, qrColor);
+    // Serial number — font proportional to QR size so it looks the same on any image
+    const serialFont = Math.round(qrPlaceSize * 0.14);
+    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + Math.round(qrPlaceSize * 0.06), qrColor, serialFont);
 
   } else {
     // ── Default mode — QR only, centered, shifted upward ──────────────────
@@ -248,8 +249,9 @@ export async function generateQRCard({
 
     ctx.drawImage(qrCanvas, qrLeft, qrTop);
 
-    // Serial number below QR — same color as QR modules
-    drawSerialNumber(ctx, label, qrLeft + QR_SIZE / 2, qrTop + QR_SIZE + 32, qrColor);
+    // Serial number — proportional to QR_SIZE for consistent look
+    const serialFont = Math.round(QR_SIZE * 0.14);
+    drawSerialNumber(ctx, label, qrLeft + QR_SIZE / 2, qrTop + QR_SIZE + Math.round(QR_SIZE * 0.06), qrColor, serialFont);
   }
 
   const card = canvas.toBuffer('image/png');
@@ -355,14 +357,18 @@ async function detectWhitePlaceholder(imgBuffer, imgW, imgH) {
  * Draw a serial number badge "(N)" below the QR code.
  * Only renders for companion-N labels; silently skips for 'main'.
  */
-function drawSerialNumber(ctx, label, cx, cy, color) {
+/**
+ * fontSize is passed by the caller and is proportional to qrPlaceSize,
+ * so the number looks the same relative to the QR code on any image size.
+ */
+function drawSerialNumber(ctx, label, cx, cy, color, fontSize) {
   const match = label.match(/^companion-(\d+)$/);
   if (!match) return;
   const num = match[1];
   const text = `( ${num} )`;
 
   ctx.save();
-  ctx.font = 'bold 72px "Amiri", serif';
+  ctx.font = `bold ${fontSize}px "Amiri", serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = color;
