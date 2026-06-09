@@ -126,7 +126,7 @@ function computeBgLayout(cardH) {
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
 const CARD_H     = 1050;
-const QR_SIZE    = 300;
+const QR_SIZE    = 240;
 const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);
 const QR_TOP     = 360;   // lower QR → more space for enlarged header
 const BORDER_PAD = 12;
@@ -195,10 +195,11 @@ export async function generateQRCard({
   if (logoBuffer) {
     const logoSize = Math.round(QR_SIZE * 0.18);
     const pad = 8;
-    // Use lightBg color as logo background so it blends with the card tone
+    // Fill transparent pixels with lightBg, then add padding with same color
     const { r: lR, g: lG, b: lB } = hexToRgb(lightBg);
     const logoBuf = await sharp(logoBuffer)
       .resize(logoSize, logoSize, { fit: 'inside' })
+      .flatten({ background: { r: lR, g: lG, b: lB } })
       .extend({ top: pad, bottom: pad, left: pad, right: pad,
                 background: { r: lR, g: lG, b: lB, alpha: 1 } })
       .png().toBuffer();
@@ -251,7 +252,7 @@ export async function generateQRCard({
     ctx.fillRect(0, 0, CARD_W, CARD_H);
 
     // Shift QR above center
-    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2) - 130;
+    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2) - 150;
     const qrLeft = QR_LEFT;
 
     ctx.drawImage(qrCanvas, qrLeft, qrTop);
