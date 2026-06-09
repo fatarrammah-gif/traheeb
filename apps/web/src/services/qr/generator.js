@@ -126,7 +126,7 @@ function computeBgLayout(cardH) {
 // ── Card dimensions ───────────────────────────────────────────────────────────
 const CARD_W     = 800;
 const CARD_H     = 1050;
-const QR_SIZE    = 360;
+const QR_SIZE    = 300;
 const QR_LEFT    = Math.round((CARD_W - QR_SIZE) / 2);
 const QR_TOP     = 360;   // lower QR → more space for enlarged header
 const BORDER_PAD = 12;
@@ -251,7 +251,7 @@ export async function generateQRCard({
     ctx.fillRect(0, 0, CARD_W, CARD_H);
 
     // Shift QR above center
-    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2) - 100;
+    const qrTop  = Math.round((CARD_H - QR_SIZE) / 2) - 130;
     const qrLeft = QR_LEFT;
 
     ctx.drawImage(qrCanvas, qrLeft, qrTop);
