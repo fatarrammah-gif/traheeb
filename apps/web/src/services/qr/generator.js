@@ -184,7 +184,8 @@ export async function generateQRCard({
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
   const grad = qrCtx.createLinearGradient(0, 0, QR_SIZE, QR_SIZE);
   // Match lightBg exactly — same soft light tone as the logo's light color
-  grad.addColorStop(0, darkenHex(lightBg, 0.04));
+  const qrColor = darkenHex(lightBg, 0.04);
+  grad.addColorStop(0, qrColor);
   grad.addColorStop(1, lightBg);
   qrCtx.fillStyle = grad;
   qrCtx.fillRect(0, 0, QR_SIZE, QR_SIZE);
@@ -228,20 +229,20 @@ export async function generateQRCard({
     const placeholder = await detectWhitePlaceholder(bgBuffer, imgW, imgH);
     console.log(`[generator] placeholder detected x=${placeholder.x} y=${placeholder.y} w=${placeholder.w} h=${placeholder.h}`);
 
-    // Fit QR inside placeholder with a small margin
+    // Fit QR inside placeholder at 50% of the available area
     const margin = 16;
     const available = Math.min(placeholder.w, placeholder.h) - margin * 2;
-    const qrPlaceSize = Math.max(150, available);
+    const qrPlaceSize = Math.max(100, Math.round(available * 0.5));
     const qrX = placeholder.x + Math.round((placeholder.w - qrPlaceSize) / 2);
-    // Shift toward the bottom so QR lands over the design's actual square
+    // Shift toward the top of the placeholder
     const qrYCenter = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
-    const qrY = qrYCenter + Math.round(placeholder.h * 0.20);
+    const qrY = qrYCenter - Math.round(placeholder.h * 0.10);
 
     // No white backing — QR floats over the background image (transparent bg)
     ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
-    // Serial number below QR
-    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + 28, darkColor);
+    // Serial number below QR — same color as QR modules
+    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + 20, qrColor);
 
   } else {
     // ── Default mode — QR only, centered, shifted upward ──────────────────
@@ -257,8 +258,8 @@ export async function generateQRCard({
 
     ctx.drawImage(qrCanvas, qrLeft, qrTop);
 
-    // Serial number below QR
-    drawSerialNumber(ctx, label, qrLeft + QR_SIZE / 2, qrTop + QR_SIZE + 32, darkColor);
+    // Serial number below QR — same color as QR modules
+    drawSerialNumber(ctx, label, qrLeft + QR_SIZE / 2, qrTop + QR_SIZE + 32, qrColor);
   }
 
   const card = canvas.toBuffer('image/png');
