@@ -232,17 +232,16 @@ export async function generateQRCard({
     // Fit QR inside placeholder at 50% of the available area
     const margin = 16;
     const available = Math.min(placeholder.w, placeholder.h) - margin * 2;
-    const qrPlaceSize = Math.max(100, Math.round(available * 0.75));
+    const qrPlaceSize = Math.max(100, Math.round(available * 0.95));
     const qrX = placeholder.x + Math.round((placeholder.w - qrPlaceSize) / 2);
-    // Shift toward the top of the placeholder
     const qrYCenter = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
-    const qrY = qrYCenter - Math.round(placeholder.h * 0.10);
+    const qrY = qrYCenter + 30;
 
     // No white backing — QR floats over the background image (transparent bg)
     ctx.drawImage(qrCanvas, qrX, qrY, qrPlaceSize, qrPlaceSize);
 
-    // Serial number below QR — same color as QR modules
-    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + 20, qrColor);
+    // Serial number below QR — same color as QR modules, with clear gap
+    drawSerialNumber(ctx, label, qrX + qrPlaceSize / 2, qrY + qrPlaceSize + 50, qrColor);
 
   } else {
     // ── Default mode — QR only, centered, shifted upward ──────────────────
@@ -372,7 +371,7 @@ function drawSerialNumber(ctx, label, cx, cy, color) {
   const text = `( ${num} )`;
 
   ctx.save();
-  ctx.font = 'bold 48px "Amiri", serif';
+  ctx.font = 'bold 72px "Amiri", serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = color;
