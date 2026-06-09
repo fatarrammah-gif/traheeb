@@ -232,7 +232,7 @@ export async function generateQRCard({
     // Fit QR inside placeholder at 50% of the available area
     const margin = 16;
     const available = Math.min(placeholder.w, placeholder.h) - margin * 2;
-    const qrPlaceSize = Math.max(100, Math.round(available * 0.5));
+    const qrPlaceSize = Math.max(100, Math.round(available * 0.75));
     const qrX = placeholder.x + Math.round((placeholder.w - qrPlaceSize) / 2);
     // Shift toward the top of the placeholder
     const qrYCenter = placeholder.y + Math.round((placeholder.h - qrPlaceSize) / 2);
