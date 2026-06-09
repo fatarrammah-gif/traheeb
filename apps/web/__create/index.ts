@@ -76,7 +76,7 @@ if (process.env.CORS_ORIGINS) {
   );
 }
 // Image upload route — allow up to 50 MB so large PNGs pass through
-app.post(
+app.use(
   '/api/upload/image',
   bodyLimit({
     maxSize: 50 * 1024 * 1024,
@@ -84,7 +84,7 @@ app.post(
   })
 );
 // Events route carries base64 images — allow up to 20MB
-app.post(
+app.use(
   '/api/events',
   bodyLimit({
     maxSize: 20 * 1024 * 1024,
@@ -95,7 +95,7 @@ for (const method of ['post', 'put', 'patch'] as const) {
   app[method](
     '*',
     bodyLimit({
-      maxSize: 4.5 * 1024 * 1024,
+      maxSize: 10 * 1024 * 1024,
       onError: (c) => {
         return c.json({ error: 'Body size limit exceeded' }, 413);
       },
