@@ -74,26 +74,16 @@ export async function POST(request, { params }) {
         LIMIT 1
       `;
 
-      let tokenValue;
-      let tokenRowId;
-
-      if (existingRows.length) {
-        // Reuse existing token (same QR code, just resend the image)
-        tokenValue  = existingRows[0].token;
-        tokenRowId  = existingRows[0].id;
-        console.log(`[resend-qr] reusing existing token id=${tokenRowId} label=${label}`);
-      } else {
-        // Create a new token
-        const newToken = crypto.randomBytes(16).toString('hex');
-        const [qt] = await sql`
-          INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
-          VALUES (${guest.id}, ${guest.event_id}, ${newToken}, ${label})
-          RETURNING id, token
-        `;
-        tokenValue = qt.token;
-        tokenRowId = qt.id;
-        console.log(`[resend-qr] new token created id=${tokenRowId} label=${label}`);
+      if (!existingRows.length) {
+        return Response.json(
+          { error: `رمز QR للمرافق رقم ${num} غير موجود في النظام` },
+          { status: 404 }
+        );
       }
+
+      const tokenValue = existingRows[0].token;
+      const tokenRowId = existingRows[0].id;
+      console.log(`[resend-qr] reusing existing token id=${tokenRowId} label=${label}`);
 
       // Fire in background
       resendSpecific(guest, { id: tokenRowId, token: tokenValue, label }).catch((err) =>
