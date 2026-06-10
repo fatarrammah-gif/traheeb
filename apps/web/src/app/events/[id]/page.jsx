@@ -121,6 +121,7 @@ export default function EventDetailPage() {
   const [toast, setToast] = useState(null);
   const [resendingGuests, setResendingGuests] = useState(new Set());
   const [specificResend, setSpecificResend] = useState({}); // { [guestId]: numberString }
+  const [sendingExtraQR, setSendingExtraQR] = useState(new Set());
   const [contactsSupported, setContactsSupported] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -349,6 +350,31 @@ export default function EventDetailPage() {
       setToast({ message: 'حدث خطأ في الاتصال', type: 'error' });
     } finally {
       setResendingGuests((prev) => {
+        const next = new Set(prev);
+        next.delete(guestId);
+        return next;
+      });
+    }
+  }
+
+  async function handleExtraQR(guestId) {
+    setSendingExtraQR((prev) => new Set(prev).add(guestId));
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${guestId}/extra-qr`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setToast({ message: data.error || 'حدث خطأ أثناء إرسال رمز QR الإضافي', type: 'error' });
+      } else {
+        setToast({ message: data.message || 'جارٍ إرسال رمز QR الإضافي', type: 'success' });
+        // Update guest in local state to disable button immediately
+        setGuests((prev) =>
+          prev.map((g) => g.id === guestId ? { ...g, extra_qr_sent: true, companions: (g.companions ?? 0) + 1 } : g)
+        );
+      }
+    } catch {
+      setToast({ message: 'حدث خطأ في الاتصال', type: 'error' });
+    } finally {
+      setSendingExtraQR((prev) => {
         const next = new Set(prev);
         next.delete(guestId);
         return next;
@@ -847,7 +873,7 @@ export default function EventDetailPage() {
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '2fr 1.5fr 70px 90px 110px',
+                      gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 70px',
                       padding: '12px 18px',
                       borderBottom: '1px solid rgba(255,255,255,0.08)',
                       fontSize: 13,
@@ -860,18 +886,20 @@ export default function EventDetailPage() {
                     <span>مرافقون</span>
                     <span>رموز QR</span>
                     <span>الحالة</span>
+                    <span>إضافي</span>
                   </div>
                   {guests.map((g, i) => {
                     const companionQr = (g.qr_tokens ?? []).filter((q) => q.label?.startsWith('companion-')).length;
                     const expectedQr = g.companions ?? 0;
                     const missingQr = expectedQr - companionQr;
                     const isResending = resendingGuests.has(g.id);
+                    const isSendingExtra = sendingExtraQR.has(g.id);
                     return (
                     <div
                       key={g.id}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '2fr 1.5fr 70px 90px 110px',
+                        gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 70px',
                         padding: '13px 18px',
                         borderBottom:
                           i < guests.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
@@ -970,6 +998,32 @@ export default function EventDetailPage() {
                         )}
                       </div>
                       <StatusBadge status={g.status} />
+
+                      {/* Extra QR — one-time only */}
+                      <div>
+                        <button
+                          onClick={() => handleExtraQR(g.id)}
+                          disabled={g.extra_qr_sent || isSendingExtra}
+                          title={g.extra_qr_sent ? 'تم إرسال رمز QR الإضافي مسبقاً' : 'إرسال رمز QR إضافي واحد'}
+                          style={{
+                            background: g.extra_qr_sent
+                              ? 'rgba(255,255,255,0.04)'
+                              : 'rgba(200,0,90,0.15)',
+                            color: g.extra_qr_sent
+                              ? 'rgba(255,255,255,0.25)'
+                              : '#ff6aab',
+                            border: `1px solid ${g.extra_qr_sent ? 'rgba(255,255,255,0.08)' : 'rgba(200,0,90,0.3)'}`,
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            fontSize: 16,
+                            cursor: g.extra_qr_sent || isSendingExtra ? 'not-allowed' : 'pointer',
+                            opacity: isSendingExtra ? 0.6 : 1,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {isSendingExtra ? '...' : g.extra_qr_sent ? '✓' : '+'}
+                        </button>
+                      </div>
                     </div>
                     );
                   })}
