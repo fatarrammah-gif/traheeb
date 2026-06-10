@@ -31,11 +31,13 @@ export async function GET(request, { params }) {
         COALESCE(
           json_agg(q ORDER BY q.label) FILTER (WHERE q.id IS NOT NULL),
           '[]'
-        ) AS qr_tokens
+        ) AS qr_tokens,
+        (ex.guest_id IS NOT NULL) AS extra_qr_sent
       FROM traheeb_guests g
       LEFT JOIN traheeb_qr_tokens q ON q.guest_id = g.id
+      LEFT JOIN traheeb_guest_extra_qr ex ON ex.guest_id = g.id
       WHERE g.event_id = ${event.id}
-      GROUP BY g.id
+      GROUP BY g.id, ex.guest_id
       ORDER BY g.created_at ASC
     `;
 

@@ -5,7 +5,7 @@
  * - Increments companions by 1
  * - Creates companion-N token (N = new companions value)
  * - Generates card and sends via Meta + personal WhatsApp if connected
- * - Sets extra_qr_sent = true to permanently disable the button
+ * - Inserts into traheeb_guest_extra_qr (PRIMARY KEY enforces one-per-guest)
  */
 import crypto from 'crypto';
 import { authenticate } from '../../../../../utils/auth.js';
@@ -44,18 +44,25 @@ export async function POST(request, { params }) {
 
     const guest = rows[0];
 
-    if (guest.extra_qr_sent) {
+    // Check if extra already sent via the dedicated table
+    const extraRows = await sql`
+      SELECT 1 FROM traheeb_guest_extra_qr WHERE guest_id = ${guest.id} LIMIT 1
+    `;
+    if (extraRows.length) {
       return Response.json({ error: 'تم إرسال رمز QR الإضافي مسبقاً لهذا الضيف' }, { status: 400 });
     }
 
-    // Increment companions and mark extra sent atomically
+    // Increment companions count
     const newCompanions = (guest.companions ?? 0) + 1;
     const label = `companion-${newCompanions}`;
 
     await sql`
-      UPDATE traheeb_guests
-      SET companions = ${newCompanions}, extra_qr_sent = true
-      WHERE id = ${guest.id}
+      UPDATE traheeb_guests SET companions = ${newCompanions} WHERE id = ${guest.id}
+    `;
+
+    // Record in extra table — PRIMARY KEY prevents duplicates
+    await sql`
+      INSERT INTO traheeb_guest_extra_qr (guest_id) VALUES (${guest.id})
     `;
 
     // Create token
