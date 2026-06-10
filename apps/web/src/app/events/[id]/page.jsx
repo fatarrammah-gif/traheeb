@@ -119,6 +119,7 @@ export default function EventDetailPage() {
   const [pendingGuests, setPendingGuests] = useState([]);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(null);
+  const [resendingGuests, setResendingGuests] = useState(new Set());
   const [contactsSupported, setContactsSupported] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -323,6 +324,27 @@ export default function EventDetailPage() {
       setToast({ message: 'حدث خطأ في الاتصال', type: 'error' });
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleResendQR(guestId) {
+    setResendingGuests((prev) => new Set(prev).add(guestId));
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${guestId}/resend-qr`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setToast({ message: data.error || 'حدث خطأ أثناء إرسال رموز QR', type: 'error' });
+      } else {
+        setToast({ message: data.message || 'جارٍ إرسال رموز QR المفقودة', type: 'success' });
+      }
+    } catch {
+      setToast({ message: 'حدث خطأ في الاتصال', type: 'error' });
+    } finally {
+      setResendingGuests((prev) => {
+        const next = new Set(prev);
+        next.delete(guestId);
+        return next;
+      });
     }
   }
 
@@ -817,7 +839,7 @@ export default function EventDetailPage() {
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '2fr 1.5fr 80px 100px',
+                      gridTemplateColumns: '2fr 1.5fr 70px 90px 110px',
                       padding: '12px 18px',
                       borderBottom: '1px solid rgba(255,255,255,0.08)',
                       fontSize: 13,
@@ -827,30 +849,73 @@ export default function EventDetailPage() {
                   >
                     <span>الاسم</span>
                     <span>رقم الجوال</span>
-                    <span>المرافقون</span>
+                    <span>مرافقون</span>
+                    <span>رموز QR</span>
                     <span>الحالة</span>
                   </div>
-                  {guests.map((g, i) => (
+                  {guests.map((g, i) => {
+                    const companionQr = (g.qr_tokens ?? []).filter((q) => q.label?.startsWith('companion-')).length;
+                    const expectedQr = g.companions ?? 0;
+                    const missingQr = expectedQr - companionQr;
+                    const isResending = resendingGuests.has(g.id);
+                    return (
                     <div
                       key={g.id}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '2fr 1.5fr 80px 100px',
+                        gridTemplateColumns: '2fr 1.5fr 70px 90px 110px',
                         padding: '13px 18px',
                         borderBottom:
                           i < guests.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
                         fontSize: 14,
                         alignItems: 'center',
+                        background: missingQr > 0 && g.status === 'confirmed' ? 'rgba(255,152,0,0.05)' : 'transparent',
                       }}
                     >
                       <span style={{ fontWeight: 500 }}>{g.name}</span>
                       <span style={{ color: 'rgba(255,255,255,0.65)', direction: 'ltr', textAlign: 'right' }}>
                         {g.phone}
                       </span>
-                      <span style={{ color: 'rgba(255,255,255,0.65)' }}>{g.companions ?? 0}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.65)' }}>{expectedQr}</span>
+                      <span>
+                        {expectedQr === 0 ? (
+                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>—</span>
+                        ) : g.status !== 'confirmed' && g.status !== 'attended' ? (
+                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>—</span>
+                        ) : missingQr > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ color: '#ffb74d', fontSize: 13, fontWeight: 600 }}>
+                              {companionQr}/{expectedQr}
+                            </span>
+                            <button
+                              onClick={() => handleResendQR(g.id)}
+                              disabled={isResending}
+                              style={{
+                                background: 'rgba(255,152,0,0.2)',
+                                color: '#ffb74d',
+                                border: '1px solid rgba(255,152,0,0.4)',
+                                borderRadius: 6,
+                                padding: '3px 8px',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: isResending ? 'not-allowed' : 'pointer',
+                                opacity: isResending ? 0.6 : 1,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {isResending ? 'جارٍ...' : `إرسال ${missingQr} مفقود`}
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#81c784', fontSize: 13, fontWeight: 600 }}>
+                            ✓ {companionQr}/{expectedQr}
+                          </span>
+                        )}
+                      </span>
                       <StatusBadge status={g.status} />
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
