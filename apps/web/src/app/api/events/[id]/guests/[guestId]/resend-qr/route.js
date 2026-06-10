@@ -1,8 +1,12 @@
 /**
  * POST /api/events/[id]/guests/[guestId]/resend-qr
  *
- * Re-issues and re-sends QR cards for any companion slots that are missing.
- * Safe to call multiple times — never duplicates existing tokens.
+ * Body (all optional):
+ *   { companionNumber: 7 }  → resend that specific companion only (creates new token if missing)
+ *   {}                      → resend ALL missing companion tokens
+ *
+ * Safe to call multiple times — never duplicates tokens for the missing-all path.
+ * For specific companion: always regenerates and resends (even if token already exists).
  */
 import crypto from 'crypto';
 import { authenticate } from '../../../../../utils/auth.js';
@@ -46,7 +50,64 @@ export async function POST(request, { params }) {
       return Response.json({ message: 'لا يوجد مرافقون لهذا الضيف', issued: 0 });
     }
 
-    // Find which companion labels already have tokens
+    // Parse optional body
+    let body = {};
+    try { body = await request.json(); } catch { /* no body */ }
+    const { companionNumber } = body;
+
+    // ── Mode 1: resend a specific companion number ────────────────────────────
+    if (companionNumber != null) {
+      const num = parseInt(companionNumber, 10);
+      if (!Number.isInteger(num) || num < 1 || num > companions) {
+        return Response.json(
+          { error: `رقم المرافق يجب أن يكون بين 1 و ${companions}` },
+          { status: 400 }
+        );
+      }
+
+      const label = `companion-${num}`;
+
+      // Check if a token already exists for this label
+      const existingRows = await sql`
+        SELECT id, token FROM traheeb_qr_tokens
+        WHERE guest_id = ${guest.id} AND label = ${label}
+        LIMIT 1
+      `;
+
+      let tokenValue;
+      let tokenRowId;
+
+      if (existingRows.length) {
+        // Reuse existing token (same QR code, just resend the image)
+        tokenValue  = existingRows[0].token;
+        tokenRowId  = existingRows[0].id;
+        console.log(`[resend-qr] reusing existing token id=${tokenRowId} label=${label}`);
+      } else {
+        // Create a new token
+        const newToken = crypto.randomBytes(16).toString('hex');
+        const [qt] = await sql`
+          INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
+          VALUES (${guest.id}, ${guest.event_id}, ${newToken}, ${label})
+          RETURNING id, token
+        `;
+        tokenValue = qt.token;
+        tokenRowId = qt.id;
+        console.log(`[resend-qr] new token created id=${tokenRowId} label=${label}`);
+      }
+
+      // Fire in background
+      resendSpecific(guest, { id: tokenRowId, token: tokenValue, label }).catch((err) =>
+        console.error('[resend-qr] background error:', err.message)
+      );
+
+      return Response.json({
+        success: true,
+        message: `جارٍ إعادة إرسال رمز QR للمرافق رقم ${num}`,
+        label,
+      });
+    }
+
+    // ── Mode 2: resend all missing companions ─────────────────────────────────
     const existing = await sql`
       SELECT label FROM traheeb_qr_tokens
       WHERE guest_id = ${guest.id}
@@ -54,7 +115,6 @@ export async function POST(request, { params }) {
     `;
     const existingLabels = new Set(existing.map((r) => r.label));
 
-    // Determine which are missing
     const missingLabels = [];
     for (let i = 1; i <= companions; i++) {
       const label = `companion-${i}`;
@@ -67,7 +127,6 @@ export async function POST(request, { params }) {
 
     console.log(`[resend-qr] guest=${guest.id} missing=${missingLabels.join(', ')}`);
 
-    // Fire generation + sending in background so request returns fast
     resendMissing(guest, missingLabels).catch((err) =>
       console.error('[resend-qr] background error:', err.message)
     );
@@ -84,6 +143,43 @@ export async function POST(request, { params }) {
   }
 }
 
+// ── Resend a single specific companion ───────────────────────────────────────
+
+async function resendSpecific(guest, qt) {
+  const [logoBuffer, bgBuffer] = await Promise.all([
+    fetchBuffer(guest.event_logo_url),
+    fetchBuffer(guest.qr_background_url),
+  ]);
+
+  const cardBuffer = await generateQRCard({
+    token:     qt.token,
+    label:     qt.label,
+    eventName: guest.event_name,
+    eventDate: guest.event_date,
+    eventTime: guest.event_time,
+    bgBuffer,
+    logoBuffer,
+  });
+
+  await sendViaMeta(guest, qt.id, cardBuffer, qt.label);
+
+  // Also send via personal WhatsApp session if connected
+  if (isConnected(guest.organizer_user_id)) {
+    try {
+      const caption = qrConfirmationMessage({
+        guestName: guest.name,
+        eventName: guest.event_name,
+        label: qt.label,
+      });
+      await sendImages(guest.organizer_user_id, guest.phone, [cardBuffer], caption);
+    } catch (err) {
+      console.error('[resend-qr] personal WA send error:', err.message);
+    }
+  }
+}
+
+// ── Resend all missing companions ─────────────────────────────────────────────
+
 async function resendMissing(guest, labels) {
   const [logoBuffer, bgBuffer] = await Promise.all([
     fetchBuffer(guest.event_logo_url),
@@ -91,13 +187,11 @@ async function resendMissing(guest, labels) {
   ]);
 
   const qrBuffers = [];
-  const captions = [];
+  const captions  = [];
 
   for (const label of labels) {
     try {
       const token = crypto.randomBytes(16).toString('hex');
-
-      // Save token
       const [qt] = await sql`
         INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
         VALUES (${guest.id}, ${guest.event_id}, ${token}, ${label})
@@ -105,66 +199,50 @@ async function resendMissing(guest, labels) {
       `;
       console.log(`[resend-qr] token saved id=${qt.id} label=${label}`);
 
-      // Generate card
       const cardBuffer = await generateQRCard({
-        token,
-        label,
+        token, label,
         eventName: guest.event_name,
         eventDate: guest.event_date,
         eventTime: guest.event_time,
-        bgBuffer,
-        logoBuffer,
+        bgBuffer, logoBuffer,
       });
 
       qrBuffers.push(cardBuffer);
-      captions.push(
-        qrConfirmationMessage({
-          guestName: guest.name,
-          eventName: guest.event_name,
-          label,
-        })
-      );
+      captions.push(qrConfirmationMessage({ guestName: guest.name, eventName: guest.event_name, label }));
 
-      // Also upload to ImgBB + send via Meta (same as qrService path)
       await sendViaMeta(guest, qt.id, cardBuffer, label);
-
       await sleep(1500);
     } catch (err) {
       console.error(`[resend-qr] FAILED label=${label}:`, err.message);
     }
   }
 
-  // Also send via organizer's personal WhatsApp session if connected
   if (qrBuffers.length > 0 && isConnected(guest.organizer_user_id)) {
     try {
       await sendImages(guest.organizer_user_id, guest.phone, qrBuffers, captions[0]);
-      console.log(`[resend-qr] sent ${qrBuffers.length} image(s) via personal WhatsApp`);
     } catch (err) {
       console.error('[resend-qr] personal WA send error:', err.message);
     }
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 async function sendViaMeta(guest, tokenRowId, cardBuffer, label) {
   const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
-  if (!IMGBB_API_KEY) { console.warn('[resend-qr] IMGBB_API_KEY not set, skipping Meta send'); return; }
+  if (!IMGBB_API_KEY) { console.warn('[resend-qr] IMGBB_API_KEY not set'); return; }
 
   try {
     const form = new FormData();
     form.append('key', IMGBB_API_KEY);
     form.append('image', cardBuffer.toString('base64'));
-    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
+    const res  = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
     const json = await res.json();
     if (!json.success) throw new Error('ImgBB upload failed: ' + JSON.stringify(json.error ?? json));
     const imageUrl = json.data.url;
 
-    // Save URL
     await sql`UPDATE traheeb_qr_tokens SET qr_url = ${imageUrl} WHERE id = ${tokenRowId}`;
-
-    // Wait for CDN
     await waitForUrl(imageUrl);
-
-    // Send via Meta
     await sendQRTemplate({ phone: guest.phone, imageUrl });
     console.log(`[resend-qr] Meta send ok label=${label} url=${imageUrl}`);
   } catch (err) {

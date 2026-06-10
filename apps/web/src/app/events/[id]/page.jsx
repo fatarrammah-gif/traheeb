@@ -120,6 +120,7 @@ export default function EventDetailPage() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(null);
   const [resendingGuests, setResendingGuests] = useState(new Set());
+  const [specificResend, setSpecificResend] = useState({}); // { [guestId]: numberString }
   const [contactsSupported, setContactsSupported] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -327,15 +328,22 @@ export default function EventDetailPage() {
     }
   }
 
-  async function handleResendQR(guestId) {
+  async function handleResendQR(guestId, companionNumber) {
     setResendingGuests((prev) => new Set(prev).add(guestId));
     try {
-      const res = await authFetch(`/api/events/${id}/guests/${guestId}/resend-qr`, { method: 'POST' });
+      const body = companionNumber != null ? { companionNumber } : {};
+      const res = await authFetch(`/api/events/${id}/guests/${guestId}/resend-qr`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
       const data = await res.json();
       if (!res.ok) {
         setToast({ message: data.error || 'حدث خطأ أثناء إرسال رموز QR', type: 'error' });
       } else {
-        setToast({ message: data.message || 'جارٍ إرسال رموز QR المفقودة', type: 'success' });
+        setToast({ message: data.message || 'جارٍ إرسال رمز QR', type: 'success' });
+        if (companionNumber != null) {
+          setSpecificResend((prev) => ({ ...prev, [guestId]: '' }));
+        }
       }
     } catch {
       setToast({ message: 'حدث خطأ في الاتصال', type: 'error' });
@@ -877,18 +885,17 @@ export default function EventDetailPage() {
                         {g.phone}
                       </span>
                       <span style={{ color: 'rgba(255,255,255,0.65)' }}>{expectedQr}</span>
-                      <span>
-                        {expectedQr === 0 ? (
-                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>—</span>
-                        ) : g.status !== 'confirmed' && g.status !== 'attended' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {/* Count / status */}
+                        {expectedQr === 0 || (g.status !== 'confirmed' && g.status !== 'attended') ? (
                           <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>—</span>
                         ) : missingQr > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                             <span style={{ color: '#ffb74d', fontSize: 13, fontWeight: 600 }}>
                               {companionQr}/{expectedQr}
                             </span>
                             <button
-                              onClick={() => handleResendQR(g.id)}
+                              onClick={() => handleResendQR(g.id, undefined)}
                               disabled={isResending}
                               style={{
                                 background: 'rgba(255,152,0,0.2)',
@@ -911,7 +918,57 @@ export default function EventDetailPage() {
                             ✓ {companionQr}/{expectedQr}
                           </span>
                         )}
-                      </span>
+
+                        {/* Specific companion resend — shown for confirmed/attended with companions */}
+                        {expectedQr > 0 && (g.status === 'confirmed' || g.status === 'attended') && (
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 2 }}>
+                            <input
+                              type="number"
+                              min={1}
+                              max={expectedQr}
+                              placeholder="#"
+                              value={specificResend[g.id] ?? ''}
+                              onChange={(e) =>
+                                setSpecificResend((prev) => ({ ...prev, [g.id]: e.target.value }))
+                              }
+                              style={{
+                                width: 44,
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                borderRadius: 6,
+                                padding: '3px 6px',
+                                color: '#fff',
+                                fontSize: 12,
+                                outline: 'none',
+                                textAlign: 'center',
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                const num = parseInt(specificResend[g.id], 10);
+                                if (!num) return;
+                                handleResendQR(g.id, num);
+                              }}
+                              disabled={isResending || !specificResend[g.id]}
+                              title="إعادة إرسال رمز QR لمرافق محدد"
+                              style={{
+                                background: 'rgba(100,181,246,0.15)',
+                                color: '#64b5f6',
+                                border: '1px solid rgba(100,181,246,0.3)',
+                                borderRadius: 6,
+                                padding: '3px 8px',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: isResending || !specificResend[g.id] ? 'not-allowed' : 'pointer',
+                                opacity: isResending || !specificResend[g.id] ? 0.5 : 1,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {isResending ? 'جارٍ...' : 'إرسال'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <StatusBadge status={g.status} />
                     </div>
                     );
