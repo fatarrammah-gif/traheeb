@@ -70,7 +70,14 @@
       ],
       "expo-font",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "يستخدم التطبيق الميكروفون لتشغيل الصوت داخل الفعالية.",
+          "speechRecognitionPermission": "يستخدم التطبيق التعرف على الكلام لتحسين تجربة المستخدم."
+        }
+      ]
     ],
     "web": {
       "bundler": "metro",
