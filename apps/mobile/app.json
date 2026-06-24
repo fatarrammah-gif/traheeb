@@ -8,11 +8,14 @@
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "scheme": "traheeb",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.traheeb.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "يستخدم التطبيق الكاميرا لمسح رموز QR عند دخول الضيوف إلى الفعالية.",
+        "NSMicrophoneUsageDescription": "يستخدم التطبيق الميكروفون لتشغيل الصوت داخل الفعالية."
       }
     },
     "android": {
@@ -22,11 +25,18 @@
       },
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA"
       ],
       "package": "com.traheeb.app"
     },
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "يستخدم التطبيق الكاميرا لمسح رموز QR عند دخول الضيوف إلى الفعالية."
+        }
+      ],
       [
         "expo-router",
         {
@@ -52,7 +62,10 @@
       ],
       [
         "expo-video",
-        { "supportsBackgroundPlayback": true, "supportsPictureInPicture": true }
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
       ],
       "expo-font",
       "expo-secure-store",
@@ -67,7 +80,11 @@
     },
     "extra": {
       "router": {
-        "origin": false
+        "origin": false,
+        "sitemap": false
+      },
+      "eas": {
+        "projectId": "aaff4c2b-073e-4d92-8bfe-162092ac62e6"
       }
     }
   }
