@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "scheme": "traheeb",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.traheeb.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
