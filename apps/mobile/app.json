@@ -15,7 +15,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "يستخدم التطبيق الكاميرا لمسح رموز QR عند دخول الضيوف إلى الفعالية.",
-        "NSMicrophoneUsageDescription": "يستخدم التطبيق الميكروفون لتشغيل الصوت داخل الفعالية."
+        "NSMicrophoneUsageDescription": "يستخدم التطبيق الميكروفون لتشغيل الصوت داخل الفعالية.",
+        "NSSpeechRecognitionUsageDescription": "يستخدم التطبيق التعرف على الكلام لتحسين تجربة المستخدم."
       }
     },
     "android": {
