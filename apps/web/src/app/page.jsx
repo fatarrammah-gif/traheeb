@@ -12,7 +12,7 @@ const WHATSAPP = '966538384048';
 const SCREENS = [
   '/step_1.jpeg',
   '/step_2.jpeg',
-  '/step_3.png',
+  '/step_3.jpeg',
   '/step_4.jpeg',
   '/step_5.jpeg',
 ];
@@ -174,8 +174,8 @@ function PhoneMockup({ src }) {
     <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
       <div
         style={{
-          width: 255,
-          height: 470,
+          width: 220,
+          height: 440,
           borderRadius: 38,
           overflow: 'hidden',
           border: '3px solid #F2E0EB',
