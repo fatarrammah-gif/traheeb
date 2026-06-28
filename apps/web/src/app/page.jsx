@@ -573,9 +573,9 @@ export default function LandingPage() {
                   height: 466,
                   borderRadius: 42,
                   background: 'rgba(255,255,255,0.15)',
-                  border: '2.5px solid rgba(255,255,255,0.30)',
+                  border: '2.5px solid rgba(0,0,0,0.75)',
                   overflow: 'hidden',
-                  boxShadow: '0 24px 80px rgba(0,0,0,0.26), inset 0 0 0 1px rgba(255,255,255,0.10)',
+                  boxShadow: '0 24px 80px rgba(0,0,0,0.26), inset 0 0 0 1px rgba(0,0,0,0.10)',
                 }}
               >
                 <img src="/screen_1.jpeg" alt="تراحيب" style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} />
@@ -584,10 +584,10 @@ export default function LandingPage() {
               <div
                 style={{
                   position: 'absolute',
-                  bottom: -18,
-                  right: -18,
-                  width: 68,
-                  height: 68,
+                  bottom: -22,
+                  right: -22,
+                  width: 82,
+                  height: 82,
                   borderRadius: '50%',
                   background: '#fff',
                   display: 'flex',
@@ -595,9 +595,10 @@ export default function LandingPage() {
                   justifyContent: 'center',
                   boxShadow: '0 8px 28px rgba(138,0,79,0.22)',
                   border: '3px solid #FFF0F7',
+                  overflow: 'hidden',
                 }}
               >
-                <img src={LOGO} alt="" style={{ width: 50, height: 50, objectFit: 'contain', mixBlendMode: 'multiply' }} />
+                <img src="/icon_2.png" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             </div>
           </div>
