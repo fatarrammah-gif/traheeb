@@ -511,7 +511,7 @@ export default function LandingPage() {
             </p>
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
               <a
-                href="/download"
+                href="/login"
                 style={{
                   padding: '15px 36px',
                   borderRadius: 14,
@@ -521,12 +521,19 @@ export default function LandingPage() {
                   fontSize: 16,
                   textDecoration: 'none',
                   boxShadow: '0 6px 28px rgba(0,0,0,0.18)',
-                  display: 'inline-block',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 10,
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
                 onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
               >
-                حمّل التطبيق
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#BE185D" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                ابدأ الآن
               </a>
               <a
                 href={`https://wa.me/${WHATSAPP}`}
