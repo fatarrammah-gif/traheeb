@@ -511,7 +511,7 @@ export default function LandingPage() {
             </p>
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
               <a
-                href="/login"
+                href="/download"
                 style={{
                   padding: '15px 36px',
                   borderRadius: 14,
@@ -526,7 +526,7 @@ export default function LandingPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
                 onMouseLeave={(e) => (e.currentTarget.style.transform = '')}
               >
-                تسجيل الدخول
+                حمّل التطبيق
               </a>
               <a
                 href={`https://wa.me/${WHATSAPP}`}
