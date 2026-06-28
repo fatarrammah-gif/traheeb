@@ -511,7 +511,7 @@ export default function LandingPage() {
             </p>
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
               <a
-                href="/login"
+                href="/download"
                 style={{
                   padding: '15px 36px',
                   borderRadius: 14,
