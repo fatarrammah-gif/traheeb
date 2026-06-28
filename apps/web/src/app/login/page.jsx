@@ -122,6 +122,9 @@ export default function LoginPage() {
           flexShrink: 0,
         }}
       >
+        <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
+          <img src={LOGO} alt="تراحيب" style={{ width: 56, height: 56, objectFit: 'contain', mixBlendMode: 'screen' }} />
+        </a>
         <a
           href="/login"
           style={{
@@ -135,9 +138,6 @@ export default function LoginPage() {
           }}
         >
           تسجيل الدخول
-        </a>
-        <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
-          <img src={LOGO} alt="تراحيب" style={{ width: 44, height: 44, objectFit: 'contain', mixBlendMode: 'screen' }} />
         </a>
       </nav>
 

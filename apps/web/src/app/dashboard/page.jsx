@@ -44,7 +44,7 @@ function DashHeader({ user, onLogout }) {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
-            <img src={LOGO} alt="تراحيب" style={{ width: 44, height: 44, objectFit: 'contain', mixBlendMode: 'screen' }} />
+            <img src={LOGO} alt="تراحيب" style={{ width: 56, height: 56, objectFit: 'contain', mixBlendMode: 'screen' }} />
           </a>
           <div style={{ height: 28, width: 1, background: 'rgba(255,255,255,0.25)' }} />
           <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>لوحة التحكم</span>
