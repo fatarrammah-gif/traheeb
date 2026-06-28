@@ -578,7 +578,7 @@ export default function LandingPage() {
                   boxShadow: '0 24px 80px rgba(0,0,0,0.26), inset 0 0 0 1px rgba(255,255,255,0.10)',
                 }}
               >
-                <img src="/screen_1_3.png" alt="تراحيب" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src="/screen_1_3.png" alt="تراحيب" style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} />
               </div>
               {/* Floating logo badge */}
               <div
