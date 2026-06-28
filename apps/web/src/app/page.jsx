@@ -10,11 +10,11 @@ const PINK_GRAD =
 const WHATSAPP = '966538384048';
 
 const SCREENS = [
-  'https://dtvoeevhaseb5.cloudfront.net/user-uploads/0f17ea19-67fb-44ae-a422-043184b4beaf.png',
-  'https://dtvoeevhaseb5.cloudfront.net/user-uploads/f894c3d3-1110-4068-9feb-c194d49b2c44.png',
-  'https://dtvoeevhaseb5.cloudfront.net/user-uploads/99c93e59-e4e7-456c-82b8-42399425dc06.png',
-  'https://dtvoeevhaseb5.cloudfront.net/user-uploads/14e46981-d906-4e1f-8fa9-26942430d298.png',
-  'https://dtvoeevhaseb5.cloudfront.net/user-uploads/b42cfa36-4dea-4402-b2c3-8cd7e546f5c6.png',
+  '/step_1.jpeg',
+  '/step_2.jpeg',
+  '/step_3.jpeg',
+  '/step_4.jpeg',
+  '/step_5.jpeg',
 ];
 
 const T = {
@@ -108,8 +108,8 @@ const PACKAGES = [
   },
   {
     name: 'الاحترافي',
-    price: '49',
-    period: 'شهرياً',
+    price: '1500',
+    period: '',
     color: T.primary,
     bg: T.primarySoft,
     border: T.primary,
@@ -127,8 +127,8 @@ const PACKAGES = [
   },
   {
     name: 'المؤسسي',
-    price: '199',
-    period: 'شهرياً',
+    price: '2000',
+    period: '',
     color: '#EF6C00',
     bg: '#FFF3E0',
     border: '#EF6C00',
@@ -807,7 +807,7 @@ export default function LandingPage() {
               <div style={{ fontSize: 20, fontWeight: 700, color: pkg.color, marginBottom: 12 }}>{pkg.name}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
                 <span style={{ fontSize: 50, fontWeight: 800, color: T.text }}>{pkg.price}</span>
-                <span style={{ fontSize: 15, color: T.muted }}>ر.س / {pkg.period}</span>
+                <span style={{ fontSize: 15, color: T.muted }}>ر.س{pkg.period ? ` / ${pkg.period}` : ''}</span>
               </div>
               <div style={{ height: 1, background: T.border, margin: '20px 0' }} />
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
