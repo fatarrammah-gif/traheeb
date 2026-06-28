@@ -566,7 +566,7 @@ export default function LandingPage() {
             }}
           >
             <img
-              src="/screen_1_2.png"
+              src="/screen_1_3.png"
               alt="تراحيب"
               style={{ width: 280, objectFit: 'contain', filter: 'drop-shadow(0 24px 48px rgba(0,0,0,0.22))' }}
             />
