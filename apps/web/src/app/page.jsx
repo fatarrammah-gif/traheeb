@@ -565,11 +565,41 @@ export default function LandingPage() {
               transform: visible ? 'translateY(0)' : 'translateY(30px)',
             }}
           >
-            <img
-              src="/screen_1_3.png"
-              alt="تراحيب"
-              style={{ width: 280, objectFit: 'contain', filter: 'drop-shadow(0 24px 48px rgba(0,0,0,0.22))' }}
-            />
+            <div style={{ position: 'relative', width: 230 }}>
+              {/* Phone frame */}
+              <div
+                style={{
+                  width: 230,
+                  height: 466,
+                  borderRadius: 42,
+                  background: 'rgba(255,255,255,0.15)',
+                  border: '2.5px solid rgba(255,255,255,0.30)',
+                  overflow: 'hidden',
+                  boxShadow: '0 24px 80px rgba(0,0,0,0.26), inset 0 0 0 1px rgba(255,255,255,0.10)',
+                }}
+              >
+                <img src="/screen_1_3.png" alt="تراحيب" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              {/* Floating logo badge */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: -18,
+                  right: -18,
+                  width: 68,
+                  height: 68,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 8px 28px rgba(138,0,79,0.22)',
+                  border: '3px solid #FFF0F7',
+                }}
+              >
+                <img src={LOGO} alt="" style={{ width: 50, height: 50, objectFit: 'contain', mixBlendMode: 'multiply' }} />
+              </div>
+            </div>
           </div>
         </div>
 
