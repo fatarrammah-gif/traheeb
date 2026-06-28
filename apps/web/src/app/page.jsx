@@ -598,7 +598,7 @@ export default function LandingPage() {
                   overflow: 'hidden',
                 }}
               >
-                <img src="/icon_2.png" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src="/icon_2.png" alt="" style={{ width: '120%', height: '120%', objectFit: 'cover' }} />
               </div>
             </div>
           </div>
