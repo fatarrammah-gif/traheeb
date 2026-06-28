@@ -300,7 +300,7 @@ export default function LandingPage() {
             <img
               src={LOGO}
               alt="تراحيب"
-              style={{ width: 56, height: 56, objectFit: 'contain', mixBlendMode: 'screen' }}
+              style={{ width: 62, height: 62, objectFit: 'contain', mixBlendMode: 'screen' }}
             />
           </button>
 

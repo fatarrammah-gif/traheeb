@@ -123,7 +123,7 @@ export default function LoginPage() {
         }}
       >
         <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
-          <img src={LOGO} alt="تراحيب" style={{ width: 56, height: 56, objectFit: 'contain', mixBlendMode: 'screen' }} />
+          <img src={LOGO} alt="تراحيب" style={{ width: 62, height: 62, objectFit: 'contain', mixBlendMode: 'screen' }} />
         </a>
         <a
           href="/login"
