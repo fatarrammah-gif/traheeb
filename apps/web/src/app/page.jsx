@@ -180,9 +180,12 @@ function PhoneMockup({ src }) {
           overflow: 'hidden',
           border: '3px solid #F2E0EB',
           boxShadow: '0 24px 64px rgba(138,0,79,0.16), 0 4px 16px rgba(0,0,0,0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <img src={src} alt="" style={{ width: '106%', height: '106%', objectFit: 'cover', marginLeft: '-3%', marginTop: '-3%' }} />
+        <img src={src} alt="" style={{ width: '92%', height: '92%', objectFit: 'cover', borderRadius: 30 }} />
       </div>
     </div>
   );
