@@ -65,6 +65,23 @@ export async function POST(request, { params }) {
       return Response.json({ error: 'قائمة المدعوين فارغة' }, { status: 400 });
     }
 
+    // Capacity enforcement — count existing companions as used QR slots
+    if (event.capacity > 0) {
+      const [{ used }] = await sql`
+        SELECT COALESCE(SUM(companions), 0)::int AS used
+        FROM traheeb_guests
+        WHERE event_id = ${event.id}
+      `;
+      const incomingCompanions = guestList.reduce((s, g) => s + Math.max(0, parseInt(g.companions ?? 0, 10)), 0);
+      const remaining = event.capacity - used;
+      if (incomingCompanions > remaining) {
+        return Response.json({
+          error: `تجاوزت السعة المتاحة — المتبقي ${remaining} مقعد فقط`,
+          remaining,
+        }, { status: 400 });
+      }
+    }
+
     const inserted = [];
 
     for (const g of guestList) {

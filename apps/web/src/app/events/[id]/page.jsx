@@ -135,7 +135,16 @@ export default function EventDetailPage() {
     const name = newGuest.name.trim();
     const phone = newGuest.phone.trim();
     if (!name || !phone) return;
-    setPendingGuests((prev) => [...prev, { name, phone, companions: parseInt(newGuest.companions) || 0 }]);
+    const companions = parseInt(newGuest.companions) || 0;
+    const currentPendingComp = pendingGuests.reduce((s, g) => s + (g.companions ?? 0), 0);
+    const currentUsed = usedCompanions + currentPendingComp;
+    const cap = event?.capacity ?? 0;
+    if (cap > 0 && companions > cap - currentUsed) {
+      const rem = Math.max(0, cap - currentUsed);
+      setToast({ message: `تجاوزت السعة المتاحة — المتبقي ${rem} مقعد فقط`, type: 'error' });
+      return;
+    }
+    setPendingGuests((prev) => [...prev, { name, phone, companions }]);
     setNewGuest({ name: '', phone: '', companions: 0 });
   }
 
@@ -296,6 +305,14 @@ export default function EventDetailPage() {
   const declined = guests.filter(g => g.status === 'declined').length;
   const pct = guests.length > 0 ? Math.min(100, Math.round(confirmed / guests.length * 100)) : 0;
 
+  // Capacity enforcement (based on companion/QR count)
+  const usedCompanions = guests.reduce((s, g) => s + (g.companions ?? 0), 0);
+  const pendingCompanions = pendingGuests.reduce((s, g) => s + (g.companions ?? 0), 0);
+  const totalUsed = usedCompanions + pendingCompanions;
+  const capacityLimit = event?.capacity ?? 0;
+  const remainingCapacity = capacityLimit > 0 ? Math.max(0, capacityLimit - totalUsed) : Infinity;
+  const capacityFull = capacityLimit > 0 && remainingCapacity === 0;
+
   const filteredGuests = guests.filter(g => {
     if (statusFilter && g.status !== statusFilter) return false;
     if (guestSearch && !g.name?.includes(guestSearch) && !g.phone?.includes(guestSearch)) return false;
@@ -446,11 +463,20 @@ export default function EventDetailPage() {
               <div style={{ background: T.surface, borderRadius: 20, border: `1px solid ${T.border}`, boxShadow: '0 2px 12px rgba(138,0,79,0.05)', overflow: 'hidden' }}>
                 {/* Guest list header */}
                 <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: 0 }}>المدعوون ({guests.length})</h3>
-                    <button onClick={() => { setShowAddForm(v => !v); setShowBulkPaste(false); }}
-                      style={{ background: showAddForm ? GRAD : T.primarySoft, color: showAddForm ? '#fff' : T.primary, border: `1px solid ${T.border}`, borderRadius: 10, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
-                      {showAddForm ? 'إخفاء النموذج' : '+ إضافة مدعوين'}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: '0 0 2px' }}>المدعوون ({guests.length})</h3>
+                      {capacityLimit > 0 && (
+                        <span style={{ fontSize: 12, color: capacityFull ? '#EF4444' : T.muted, fontWeight: 600 }}>
+                          {capacityFull ? '🔴 السعة ممتلئة' : `متبقي ${remainingCapacity} مقعد من ${capacityLimit}`}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { if (!capacityFull) { setShowAddForm(v => !v); setShowBulkPaste(false); } }}
+                      disabled={capacityFull}
+                      style={{ background: capacityFull ? '#F9FAFB' : showAddForm ? GRAD : T.primarySoft, color: capacityFull ? T.muted : showAddForm ? '#fff' : T.primary, border: `1px solid ${capacityFull ? T.border : T.border}`, borderRadius: 10, padding: '8px 16px', fontSize: 13, cursor: capacityFull ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: capacityFull ? 0.6 : 1 }}>
+                      {capacityFull ? '🔒 السعة ممتلئة' : showAddForm ? 'إخفاء النموذج' : '+ إضافة مدعوين'}
                     </button>
                   </div>
 
