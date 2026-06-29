@@ -43,7 +43,7 @@ function Field({ label, required, children }) {
   );
 }
 
-function DashHeader() {
+function DashHeader({ user, onLogout }) {
   return (
     <div style={{ background: GRAD, position: 'sticky', top: 0, zIndex: 200 }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -68,7 +68,18 @@ function DashHeader() {
             </a>
           ))}
         </div>
-        <div style={{ width: 44 }} />
+        {user && (
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 14px 6px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.28)', flexShrink: 0, cursor: 'pointer' }}
+            onClick={onLogout}
+            title="تسجيل الخروج"
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{user.name}</span>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C2185B', fontWeight: 800, fontSize: 15 }}>
+              {(user.name || 'م').charAt(0)}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -230,6 +241,13 @@ function LocationPicker({ value, onChange }) {
 
 export default function NewEventPage() {
   const token = useWebAuth((s) => s.token);
+  const user = useWebAuth((s) => s.user);
+  const logout = useWebAuth((s) => s.logout);
+
+  function handleLogout() {
+    logout();
+    window.location.href = '/login';
+  }
 
   const [mapLocation, setMapLocation] = useState(null);
   const [form, setForm] = useState({ name: '', date: '', time: '', venue: '', capacity: '', invitation_text: '' });
@@ -278,7 +296,7 @@ export default function NewEventPage() {
   if (success) {
     return (
       <div style={{ minHeight: '100vh', background: T.bg, fontFamily: "'Cairo', sans-serif" }}>
-        <DashHeader />
+        <DashHeader user={user} onLogout={handleLogout} />
         <div style={{ maxWidth: 560, margin: '80px auto', padding: '0 24px', textAlign: 'center' }}>
           <div style={{ background: T.surface, borderRadius: 24, padding: 48, border: `1px solid ${T.border}`, boxShadow: '0 4px 32px rgba(138,0,79,0.07)' }}>
             <div style={{ fontSize: 72, marginBottom: 20 }}>🎉</div>
