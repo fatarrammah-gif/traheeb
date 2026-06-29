@@ -49,20 +49,15 @@ export default function AttendancePage() {
 
   if (!token) return null;
 
-  // Flatten all QR tokens with guest info
+  // Only companion QR tokens (main guests don't scan QR)
   const rows = [];
   guests.forEach(g => {
-    const tokens = g.qr_tokens ?? [];
-    if (tokens.length === 0) return;
+    const tokens = (g.qr_tokens ?? []).filter(t => t.label?.startsWith('companion-'));
     tokens.forEach(t => {
-      const isCompanion = t.label?.startsWith('companion-');
       rows.push({
         guestName: g.name,
         guestPhone: g.phone,
-        ticketId: t.token ?? t.id,
-        label: isCompanion ? `مرافق ${t.label?.replace('companion-', '') ?? ''}` : 'رئيسي',
         attended: !!t.used,
-        isCompanion,
       });
     });
   });
@@ -70,7 +65,7 @@ export default function AttendancePage() {
   const filtered = rows.filter(r => {
     if (filter === 'attended' && !r.attended) return false;
     if (filter === 'absent' && r.attended) return false;
-    if (search && !r.guestName?.includes(search) && !r.guestPhone?.includes(search)) return false;
+    if (search && !r.guestName?.includes(search)) return false;
     return true;
   });
 
@@ -110,7 +105,7 @@ export default function AttendancePage() {
           </h1>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, maxWidth: 500 }}>
             {[
-              { label: 'إجمالي رموز QR', value: rows.length, icon: '🎫' },
+              { label: 'إجمالي المرافقين', value: rows.length, icon: '🎫' },
               { label: 'حاضر', value: attendedCount, icon: '✅' },
               { label: 'متغيب', value: absentCount, icon: '🔴' },
             ].map(s => (
@@ -158,20 +153,13 @@ export default function AttendancePage() {
         ) : (
           <div style={{ background: T.surface, borderRadius: 20, border: `1px solid ${T.border}`, overflow: 'hidden', boxShadow: '0 2px 12px rgba(138,0,79,0.05)' }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 90px', padding: '12px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 700, color: T.muted, background: T.primarySoft }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', padding: '12px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 700, color: T.muted, background: T.primarySoft }}>
               <span>المدعو</span>
-              <span>النوع</span>
               <span>الحالة</span>
             </div>
             {filtered.map((r, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 90px', padding: '13px 24px', borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'center', fontSize: 14, background: r.attended ? '#F0FDF4' : 'transparent' }}>
-                <div>
-                  <div style={{ fontWeight: 600, color: T.text }}>{r.guestName}</div>
-                  <div style={{ fontSize: 12, color: T.muted, direction: 'ltr', textAlign: 'right' }}>{r.guestPhone}</div>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 600, background: r.isCompanion ? '#EFF6FF' : T.primarySoft, color: r.isCompanion ? '#2563EB' : T.primary, borderRadius: 8, padding: '3px 10px', display: 'inline-block' }}>
-                  {r.label}
-                </span>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px', padding: '13px 24px', borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'center', fontSize: 14, background: r.attended ? '#F0FDF4' : 'transparent' }}>
+                <div style={{ fontWeight: 600, color: T.text }}>{r.guestName}</div>
                 <span style={{ fontSize: 12, fontWeight: 700, background: r.attended ? '#ECFDF5' : '#FEF2F2', color: r.attended ? '#059669' : '#EF4444', borderRadius: 8, padding: '3px 10px', border: `1px solid ${r.attended ? '#A7F3D0' : '#FECACA'}`, display: 'inline-block' }}>
                   {r.attended ? 'حاضر' : 'متغيب'}
                 </span>
