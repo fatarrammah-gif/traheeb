@@ -158,21 +158,17 @@ export default function AttendancePage() {
         ) : (
           <div style={{ background: T.surface, borderRadius: 20, border: `1px solid ${T.border}`, overflow: 'hidden', boxShadow: '0 2px 12px rgba(138,0,79,0.05)' }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 90px', padding: '12px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 700, color: T.muted, background: T.primarySoft }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 90px', padding: '12px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 700, color: T.muted, background: T.primarySoft }}>
               <span>المدعو</span>
-              <span>رقم التذكرة</span>
               <span>النوع</span>
               <span>الحالة</span>
             </div>
             {filtered.map((r, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 90px', padding: '13px 24px', borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'center', fontSize: 14, background: r.attended ? '#F0FDF4' : 'transparent' }}>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 90px', padding: '13px 24px', borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'center', fontSize: 14, background: r.attended ? '#F0FDF4' : 'transparent' }}>
                 <div>
                   <div style={{ fontWeight: 600, color: T.text }}>{r.guestName}</div>
                   <div style={{ fontSize: 12, color: T.muted, direction: 'ltr', textAlign: 'right' }}>{r.guestPhone}</div>
                 </div>
-                <span style={{ fontSize: 12, color: T.muted, fontFamily: 'monospace', direction: 'ltr' }}>
-                  {String(r.ticketId).slice(0, 16)}…
-                </span>
                 <span style={{ fontSize: 12, fontWeight: 600, background: r.isCompanion ? '#EFF6FF' : T.primarySoft, color: r.isCompanion ? '#2563EB' : T.primary, borderRadius: 8, padding: '3px 10px', display: 'inline-block' }}>
                   {r.label}
                 </span>
