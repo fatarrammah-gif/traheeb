@@ -182,7 +182,7 @@ function PhoneMockup({ src }) {
           boxShadow: '0 24px 64px rgba(138,0,79,0.16), 0 4px 16px rgba(0,0,0,0.08)',
         }}
       >
-        <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={src} alt="" style={{ width: '106%', height: '106%', objectFit: 'cover', marginLeft: '-3%', marginTop: '-3%' }} />
       </div>
     </div>
   );
