@@ -39,10 +39,16 @@ function SkeletonCard() {
   );
 }
 
-function DashHeader({ user, onLogout }) {
+function DashHeader({ onLogout, activeHref = '/dashboard' }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const NAV = [
+    { label: 'الفعاليات', href: '/dashboard' },
+    { label: 'إنشاء فعالية', href: '/events/new' },
+  ];
   return (
     <div style={{ background: GRAD, position: 'sticky', top: 0, zIndex: 200 }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        {/* Logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
             <img src={LOGO} alt="تراحيب" style={{ width: 62, height: 62, objectFit: 'contain', mixBlendMode: 'screen' }} />
@@ -50,33 +56,69 @@ function DashHeader({ user, onLogout }) {
           <div style={{ height: 28, width: 1, background: 'rgba(255,255,255,0.25)' }} />
           <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>لوحة التحكم</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {[
-            { label: 'الفعاليات', href: '/dashboard', active: true },
-            { label: 'إنشاء فعالية', href: '/events/new' },
-          ].map((l) => (
+
+        {/* Nav links (desktop) + hamburger (mobile) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Desktop nav */}
+          <div className="dash-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {NAV.map((l) => {
+              const active = activeHref === l.href;
+              return (
+                <a key={l.href} href={l.href}
+                  style={{ padding: '7px 16px', borderRadius: 10, fontSize: 14, fontWeight: active ? 700 : 500, color: active ? '#C2185B' : 'rgba(255,255,255,0.85)', background: active ? '#fff' : 'transparent', textDecoration: 'none', transition: 'background 0.2s' }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {l.label}
+                </a>
+              );
+            })}
+            <button
+              onClick={onLogout}
+              style={{ padding: '7px 16px', borderRadius: 10, fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.85)', background: 'transparent', border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              تسجيل خروج
+            </button>
+          </div>
+
+          {/* Hamburger (mobile) */}
+          <button
+            className="dash-hamburger"
+            onClick={() => setMenuOpen(o => !o)}
+            style={{ display: 'none', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.28)', borderRadius: 9, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: 19 }}
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile dropdown */}
+      {menuOpen && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.18)', padding: '10px 20px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {NAV.map(l => (
             <a key={l.href} href={l.href}
-              style={{ padding: '7px 16px', borderRadius: 10, fontSize: 14, fontWeight: l.active ? 700 : 500, color: l.active ? '#C2185B' : 'rgba(255,255,255,0.85)', background: l.active ? '#fff' : 'transparent', textDecoration: 'none', transition: 'background 0.2s' }}
-              onMouseEnter={e => { if (!l.active) e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
-              onMouseLeave={e => { if (!l.active) e.currentTarget.style.background = 'transparent'; }}
+              style={{ padding: '13px 18px', borderRadius: 11, fontSize: 16, fontWeight: 600, color: '#fff', background: 'rgba(255,255,255,0.08)', textDecoration: 'none', display: 'block', textAlign: 'right' }}
             >
               {l.label}
             </a>
           ))}
-        </div>
-        {user && (
-          <div
-            style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 14px 6px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.28)', flexShrink: 0, cursor: 'pointer' }}
+          <button
             onClick={onLogout}
-            title="تسجيل الخروج"
+            style={{ padding: '13px 18px', borderRadius: 11, fontSize: 16, fontWeight: 700, color: '#C2185B', background: '#fff', border: 'none', cursor: 'pointer', textAlign: 'right', marginTop: 4 }}
           >
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{user.name}</span>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C2185B', fontWeight: 800, fontSize: 15 }}>
-              {(user.name || 'م').charAt(0)}
-            </div>
-          </div>
-        )}
-      </div>
+            تسجيل خروج
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        @media (max-width: 768px) {
+          .dash-nav-links { display: none !important; }
+          .dash-hamburger { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -125,7 +167,7 @@ export default function DashboardPage() {
 
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: T.bg, fontFamily: "'Cairo', sans-serif" }}>
-      <DashHeader user={user} onLogout={handleLogout} />
+      <DashHeader onLogout={handleLogout} activeHref="/dashboard" />
 
       {/* Stats Banner */}
       <div style={{ background: GRAD, padding: '32px 24px 60px' }}>
