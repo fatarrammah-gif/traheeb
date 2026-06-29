@@ -366,7 +366,26 @@ export default function EventDetailPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {event?.date && <div style={{ fontSize: 14, color: T.muted }}>📅 {formatDate(event.date)}</div>}
                   {event?.time && <div style={{ fontSize: 14, color: T.muted }}>🕐 {event.time?.slice(0, 5)}</div>}
-                  {event?.venue && <div style={{ fontSize: 14, color: T.muted }}>📍 {event.venue}{event?.location ? `، ${event.location}` : ''}</div>}
+                  {event?.venue && (
+                    <div style={{ fontSize: 14, color: T.muted }}>
+                      📍 {event.venue}
+                      {event?.location && (() => {
+                        const isUrl = /^https?:\/\//i.test(event.location);
+                        return isUrl ? (
+                          <a
+                            href={event.location}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6, fontSize: 12, color: T.primary, fontWeight: 600, textDecoration: 'none', background: T.primarySoft, border: `1px solid ${T.border}`, borderRadius: 6, padding: '2px 8px' }}
+                          >
+                            🗺️ عرض الخريطة
+                          </a>
+                        ) : (
+                          <span>، {event.location}</span>
+                        );
+                      })()}
+                    </div>
+                  )}
                   {event?.capacity != null && <div style={{ fontSize: 14, color: T.muted }}>👥 {event.capacity} مدعو</div>}
                   {event?.description && <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7, marginTop: 4 }}>{event.description}</div>}
                 </div>
