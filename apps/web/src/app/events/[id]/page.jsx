@@ -318,22 +318,23 @@ export default function EventDetailPage() {
                 سعة {event.capacity}
               </span>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }} className="stat-cards">
+            <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8, width: '100%', maxWidth: 420 }} className="stat-cards">
               {[
-                { label: 'مدعو', value: guests.length, icon: '📨', desc: 'إجمالي المدعوين' },
-                { label: 'مؤكد', value: confirmed, icon: '✅', desc: 'أكدوا الحضور' },
-                { label: 'معتذر', value: declined, icon: '❌', desc: 'اعتذروا' },
+                { label: 'مدعو', value: guests.length, icon: '📨' },
+                { label: 'مؤكد', value: confirmed, icon: '✅' },
+                { label: 'معتذر', value: declined, icon: '❌' },
               ].map((s) => (
-                <div key={s.label} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 14, padding: '14px 18px', backdropFilter: 'blur(8px)' }}>
-                  <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{s.value}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 4 }}>{s.label}</div>
+                <div key={s.label} className="stat-box" style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 12, padding: '10px 12px', backdropFilter: 'blur(8px)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>{s.label}</div>
                 </div>
               ))}
             </div>
             <a
               href={`/events/${id}/attendance`}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.35)', borderRadius: 12, padding: '10px 20px', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none', marginBottom: 20, backdropFilter: 'blur(8px)', transition: 'background 0.2s' }}
+              className="attendance-btn"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.35)', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none', marginBottom: 20, backdropFilter: 'blur(8px)', transition: 'background 0.2s', width: '100%', maxWidth: 420 }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.28)'}
               onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
             >
@@ -617,7 +618,17 @@ export default function EventDetailPage() {
 
       <style>{`
         @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr !important; } }
-        @media (max-width: 600px) { .stat-cards { grid-template-columns: repeat(2, 1fr) !important; } }
+        .stat-cards { width: 100% !important; max-width: 100% !important; }
+        .stat-box { min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .attendance-btn { max-width: 100% !important; min-height: 80px; }
+        @media (max-width: 600px) {
+          .stat-cards { grid-template-columns: repeat(3, 1fr) !important; }
+          .stat-box { padding: 8px 6px !important; min-height: 72px; }
+          .stat-box > div:first-child { font-size: 15px !important; }
+          .stat-box > div:nth-child(2) { font-size: 20px !important; }
+          .stat-box > div:nth-child(3) { font-size: 10px !important; }
+          .attendance-btn { min-height: 72px; font-size: 13px !important; }
+        }
         @media (max-width: 768px) {
           .guest-header, .guest-row { grid-template-columns: 1fr !important; }
           .g-phone, .g-comp, .g-qr, .g-extra, .g-status-desktop { display: none !important; }
