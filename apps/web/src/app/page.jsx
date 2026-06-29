@@ -171,7 +171,7 @@ const WaIcon = () => (
 
 function PhoneMockup({ src }) {
   return (
-    <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+    <div className="step-phone" style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
       <div
         style={{
           width: 220,
@@ -193,7 +193,7 @@ function PhoneMockup({ src }) {
 
 function StepText({ step }) {
   return (
-    <div style={{ flex: 1, minWidth: 260 }}>
+    <div className="step-text" style={{ flex: 1, minWidth: 260 }}>
       <div
         style={{
           display: 'inline-flex',
@@ -1056,7 +1056,15 @@ export default function LandingPage() {
           .hamburger  { display: flex !important; }
           .feat-grid  { grid-template-columns: 1fr !important; }
           .pkg-grid   { grid-template-columns: 1fr !important; }
-          .step-row   { flex-direction: column !important; }
+          .step-row   { flex-direction: row !important; align-items: center !important; gap: 16px !important; }
+          .step-text  { order: 1 !important; min-width: 0 !important; flex: 1 !important; }
+          .step-phone { order: 2 !important; flex-shrink: 0 !important; }
+          .step-phone > div { width: 130px !important; height: 260px !important; border-radius: 24px !important; }
+          .step-phone > div img { border-radius: 18px !important; }
+          .step-text h3 { font-size: 16px !important; margin-bottom: 8px !important; }
+          .step-text p  { font-size: 13px !important; line-height: 1.7 !important; }
+          .step-text > div:first-child { width: 40px !important; height: 40px !important; border-radius: 12px !important; margin-bottom: 12px !important; }
+          .step-text > div:first-child span { font-size: 16px !important; }
         }
         @media (min-width: 769px) and (max-width: 1024px) {
           .feat-grid { grid-template-columns: 1fr 1fr !important; }
