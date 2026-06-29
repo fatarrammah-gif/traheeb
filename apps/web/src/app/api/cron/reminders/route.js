@@ -23,12 +23,12 @@ function normalisePhone(phone) {
 
 function buildLocationSuffix(event) {
   if (event.map_lat && event.map_lng) {
-    // Template button: https://www.google.com/maps?q={{1}}
-    // suffix = coordinates only
-    return `${event.map_lat},${event.map_lng}`;
+    // Template button: https://maps.google.com/{{1}}
+    // suffix = ?q=lat,lng → full URL: https://maps.google.com/?q=lat,lng
+    return `?q=${event.map_lat},${event.map_lng}`;
   }
   const query = [event.venue, event.location].filter(Boolean).join(' ');
-  return encodeURIComponent(query);
+  return `?q=${encodeURIComponent(query)}`;
 }
 
 async function sendReminder({ phone, time, locationSuffix }) {
