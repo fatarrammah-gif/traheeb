@@ -38,7 +38,7 @@ async function sendReminder({ phone, time, locationSuffix }) {
     type: 'template',
     template: {
       name: 'reminder_5',
-      language: { code: 'ar' },
+      language: { code: 'en' },
       components: [
         {
           type: 'body',
