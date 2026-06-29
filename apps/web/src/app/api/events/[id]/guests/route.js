@@ -2,7 +2,7 @@
  * GET  /api/events/[id]/guests — list guests with qr_tokens
  * POST /api/events/[id]/guests — bulk insert guests, send WhatsApp invitations
  */
-import { authenticate } from '../../../utils/auth.js';
+import { authenticate, authenticateStaff } from '../../../utils/auth.js';
 import sql from '../../../utils/sql.js';
 import { sendInvitationTemplate } from '../../../../../services/whatsapp/metaSender.js';
 import crypto from 'crypto';
@@ -26,8 +26,14 @@ async function getOwnedEvent(eventId, userId) {
 
 export async function GET(request, { params }) {
   try {
-    const { user } = await authenticate(request);
-    await getOwnedEvent(params.id, user.id);
+    // Organizer auth or staff auth (read-only)
+    try {
+      const { user } = await authenticate(request);
+      await getOwnedEvent(params.id, user.id);
+    } catch (orgErr) {
+      if (orgErr.status && orgErr.status !== 401) throw orgErr;
+      await authenticateStaff(request, params.id);
+    }
 
     const guests = await sql`
       SELECT

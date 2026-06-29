@@ -86,3 +86,16 @@ CREATE TABLE IF NOT EXISTS traheeb_qr_tokens (
 );
 CREATE INDEX IF NOT EXISTS traheeb_qr_token_idx    ON traheeb_qr_tokens (token);
 CREATE INDEX IF NOT EXISTS traheeb_qr_guest_id_idx ON traheeb_qr_tokens (guest_id);
+
+-- ── Event Staff ────────────────────────────────────────────────────────────────
+-- Secondary users pre-registered by the organizer for a specific event.
+CREATE TABLE IF NOT EXISTS traheeb_event_staff (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id   UUID NOT NULL REFERENCES traheeb_events(id) ON DELETE CASCADE,
+  phone      TEXT NOT NULL,
+  name       TEXT,
+  added_by   UUID NOT NULL REFERENCES traheeb_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(event_id, phone)
+);
+CREATE INDEX IF NOT EXISTS traheeb_event_staff_event_idx ON traheeb_event_staff(event_id);

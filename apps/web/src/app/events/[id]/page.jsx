@@ -110,6 +110,11 @@ export default function EventDetailPage() {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
+  // Staff management
+  const [staff, setStaff] = useState([]);
+  const [newStaffPhone, setNewStaffPhone] = useState('');
+  const [addingStaff, setAddingStaff] = useState(false);
+
   const csvInputRef = useRef(null);
   const vcfInputRef = useRef(null);
   const xlsxInputRef = useRef(null);
@@ -119,14 +124,15 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     if (!token || !id) return;
-    authFetch(`/api/events/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.event) setEvent(data.event);
-        if (Array.isArray(data.guests)) setGuests(data.guests);
-        if (data.error) setError(data.error);
-      })
-      .catch(() => setError('حدث خطأ في تحميل الفعالية'))
+    Promise.all([
+      authFetch(`/api/events/${id}`).then(r => r.json()),
+      authFetch(`/api/events/${id}/staff`).then(r => r.json()).catch(() => ({ staff: [] })),
+    ]).then(([data, staffData]) => {
+      if (data.event) setEvent(data.event);
+      if (Array.isArray(data.guests)) setGuests(data.guests);
+      if (data.error) setError(data.error);
+      if (Array.isArray(staffData.staff)) setStaff(staffData.staff);
+    }).catch(() => setError('حدث خطأ في تحميل الفعالية'))
       .finally(() => setLoading(false));
   }, [token, id]);
 
@@ -297,6 +303,33 @@ export default function EventDetailPage() {
     }
   }
 
+  async function handleAddStaff(e) {
+    e.preventDefault();
+    if (!newStaffPhone.trim()) return;
+    setAddingStaff(true);
+    try {
+      const res = await authFetch(`/api/events/${id}/staff`, {
+        method: 'POST',
+        body: JSON.stringify({ phone: newStaffPhone.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setToast({ message: data.error || 'حدث خطأ', type: 'error' }); return; }
+      setStaff(prev => [...prev, data.staff]);
+      setNewStaffPhone('');
+    } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
+    finally { setAddingStaff(false); }
+  }
+
+  async function handleRemoveStaff(phone) {
+    try {
+      await authFetch(`/api/events/${id}/staff`, {
+        method: 'DELETE',
+        body: JSON.stringify({ phone }),
+      });
+      setStaff(prev => prev.filter(s => s.phone !== phone));
+    } catch { setToast({ message: 'حدث خطأ في الحذف', type: 'error' }); }
+  }
+
   if (!token) return null;
 
   const confirmed = guests.filter(g => g.status === 'confirmed').length;
@@ -455,6 +488,55 @@ export default function EventDetailPage() {
                     ✏️ تعديل الفعالية
                   </a>
                 </div>
+              </div>
+
+              {/* Staff management */}
+              <div style={{ background: T.surface, borderRadius: 20, padding: 20, border: `1px solid ${T.border}` }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  👥 الفريق
+                </h3>
+
+                {/* Staff list */}
+                {staff.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                    {staff.map(s => (
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: T.bg, borderRadius: 10, padding: '8px 12px', border: `1px solid ${T.border}` }}>
+                        <span style={{ fontSize: 13, color: T.text, direction: 'ltr', fontWeight: 500 }}>{s.phone}</span>
+                        <button onClick={() => handleRemoveStaff(s.phone)}
+                          style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1 }}>
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add staff form */}
+                <form onSubmit={handleAddStaff} style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={newStaffPhone}
+                    onChange={e => setNewStaffPhone(e.target.value)}
+                    placeholder="05xxxxxxxx"
+                    type="tel"
+                    dir="ltr"
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, background: T.bg, outline: 'none', fontFamily: "'Cairo', sans-serif" }}
+                  />
+                  <button type="submit" disabled={addingStaff}
+                    style={{ background: GRAD, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: addingStaff ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', fontFamily: "'Cairo', sans-serif", opacity: addingStaff ? 0.7 : 1 }}>
+                    + إضافة
+                  </button>
+                </form>
+
+                {/* Staff login link */}
+                <button
+                  onClick={() => {
+                    const link = `${window.location.origin}/events/${id}/staff-login`;
+                    navigator.clipboard.writeText(link);
+                    setToast({ message: 'تم نسخ رابط دخول الفريق', type: 'success' });
+                  }}
+                  style={{ marginTop: 12, width: '100%', background: T.primarySoft, color: T.primary, border: `1px solid ${T.border}`, borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', fontFamily: "'Cairo', sans-serif" }}>
+                  📋 نسخ رابط دخول الفريق
+                </button>
               </div>
             </div>
 

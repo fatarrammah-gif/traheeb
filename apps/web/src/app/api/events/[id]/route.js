@@ -3,7 +3,7 @@
  * PUT    /api/events/[id]  — update event fields
  * DELETE /api/events/[id]  — delete event (cascades to guests, qr_tokens)
  */
-import { authenticate } from '../../utils/auth.js';
+import { authenticate, authenticateStaff } from '../../utils/auth.js';
 import sql from '../../utils/sql.js';
 
 async function getOwnedEvent(eventId, userId) {
@@ -20,10 +20,30 @@ async function getOwnedEvent(eventId, userId) {
   return rows[0];
 }
 
+async function getEventById(eventId) {
+  const rows = await sql`
+    SELECT * FROM traheeb_events WHERE id = ${eventId} LIMIT 1
+  `;
+  if (!rows.length) {
+    const err = new Error('الفعالية غير موجودة');
+    err.status = 404;
+    throw err;
+  }
+  return rows[0];
+}
+
 export async function GET(request, { params }) {
   try {
-    const { user } = await authenticate(request);
-    const event = await getOwnedEvent(params.id, user.id);
+    // Try organizer auth; fall back to staff auth (read-only for their event)
+    let event;
+    try {
+      const { user } = await authenticate(request);
+      event = await getOwnedEvent(params.id, user.id);
+    } catch (orgErr) {
+      if (orgErr.status && orgErr.status !== 401) throw orgErr;
+      await authenticateStaff(request, params.id);
+      event = await getEventById(params.id);
+    }
 
     const guests = await sql`
       SELECT

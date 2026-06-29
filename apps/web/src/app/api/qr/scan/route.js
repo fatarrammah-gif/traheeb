@@ -6,12 +6,11 @@
  * Atomically validates and marks a QR token as used.
  * Returns { status: "valid"|"already_used"|"invalid", guest? }.
  */
-import { authenticate } from '../../utils/auth.js';
+import { authenticate, authenticateStaff } from '../../utils/auth.js';
 import sql from '../../utils/sql.js';
 
 export async function POST(request) {
   try {
-    const { user } = await authenticate(request);
     const body = await request.json();
     const { token, eventId } = body;
 
@@ -19,15 +18,31 @@ export async function POST(request) {
       return Response.json({ error: 'بيانات غير مكتملة' }, { status: 400 });
     }
 
-    // Verify the event belongs to this organizer
-    const eventRows = await sql`
-      SELECT id FROM traheeb_events
-      WHERE id = ${eventId} AND user_id = ${user.id}
-      LIMIT 1
-    `;
+    // Try organizer auth first, then staff auth
+    let isAuthorized = false;
+    try {
+      const { user } = await authenticate(request);
+      const eventRows = await sql`
+        SELECT id FROM traheeb_events
+        WHERE id = ${eventId} AND user_id = ${user.id}
+        LIMIT 1
+      `;
+      if (eventRows.length) isAuthorized = true;
+    } catch {
+      // Not an organizer — try staff token
+    }
 
-    if (!eventRows.length) {
-      return Response.json({ error: 'الفعالية غير موجودة' }, { status: 404 });
+    if (!isAuthorized) {
+      try {
+        await authenticateStaff(request, eventId);
+        isAuthorized = true;
+      } catch {
+        // Not staff either
+      }
+    }
+
+    if (!isAuthorized) {
+      return Response.json({ error: 'غير مصرح لك بمسح هذه الفعالية' }, { status: 403 });
     }
 
     // Atomic read-and-mark with SELECT FOR UPDATE
