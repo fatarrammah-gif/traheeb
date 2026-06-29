@@ -86,17 +86,29 @@ export async function GET(request) {
   }
 
   try {
+    const url = new URL(request.url);
+    const filterPhone = url.searchParams.get('phone') ?? null;
+
     // Find events happening tomorrow in Saudi Arabia time (UTC+3)
     const nowSaudi = new Date(Date.now() + 3 * 60 * 60 * 1000);
     const tomorrowSaudi = new Date(nowSaudi.getTime() + 24 * 60 * 60 * 1000);
     const tomorrowStr = tomorrowSaudi.toISOString().slice(0, 10); // YYYY-MM-DD
 
-    const events = await sql`
-      SELECT *
-      FROM traheeb_events
-      WHERE date IS NOT NULL
-        AND date LIKE ${tomorrowStr + '%'}
-    `;
+    const events = filterPhone
+      ? await sql`
+          SELECT e.*
+          FROM traheeb_events e
+          JOIN traheeb_users u ON u.id = e.user_id
+          WHERE e.date IS NOT NULL
+            AND e.date LIKE ${tomorrowStr + '%'}
+            AND RIGHT(u.phone, 9) = RIGHT(${filterPhone}, 9)
+        `
+      : await sql`
+          SELECT *
+          FROM traheeb_events
+          WHERE date IS NOT NULL
+            AND date LIKE ${tomorrowStr + '%'}
+        `;
 
     console.log(`[cron/reminders] found ${events.length} event(s) in 24h window`);
 
