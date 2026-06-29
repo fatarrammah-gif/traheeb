@@ -294,7 +294,7 @@ export default function EventDetailPage() {
   const attended = guests.filter(g => g.status === 'attended').length;
   const invited = guests.filter(g => g.status === 'invited').length;
   const declined = guests.filter(g => g.status === 'declined').length;
-  const pct = event?.capacity ? Math.min(100, Math.round(guests.length / event.capacity * 100)) : 0;
+  const pct = guests.length > 0 ? Math.min(100, Math.round(confirmed / guests.length * 100)) : 0;
 
   const filteredGuests = guests.filter(g => {
     if (statusFilter && g.status !== statusFilter) return false;
@@ -340,12 +340,16 @@ export default function EventDetailPage() {
             >
               📋 تفاصيل الحضور
             </a>
-            {event.capacity > 0 && (
+            {guests.length > 0 && (
               <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>نسبة التأكيد</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{confirmed} / {guests.length}</span>
+                </div>
                 <div style={{ height: 8, background: 'rgba(255,255,255,0.2)', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${pct}%`, background: '#fff', borderRadius: 4 }} />
                 </div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 6 }}>{pct}% ممتلئ</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 6 }}>{pct}% أكدوا الحضور</div>
               </div>
             )}
           </div>
