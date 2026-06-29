@@ -23,10 +23,12 @@ function normalisePhone(phone) {
 
 function buildLocationSuffix(event) {
   if (event.map_lat && event.map_lng) {
-    return `?q=${event.map_lat},${event.map_lng}`;
+    // Template button: https://www.google.com/maps?q={{1}}
+    // suffix = coordinates only
+    return `${event.map_lat},${event.map_lng}`;
   }
   const query = [event.venue, event.location].filter(Boolean).join(' ');
-  return `?q=${encodeURIComponent(query)}`;
+  return encodeURIComponent(query);
 }
 
 async function sendReminder({ phone, time, locationSuffix }) {
@@ -35,7 +37,7 @@ async function sendReminder({ phone, time, locationSuffix }) {
     to: normalisePhone(phone),
     type: 'template',
     template: {
-      name: 'reminder_6',
+      name: 'reminder_5',
       language: { code: 'ar' },
       components: [
         {
