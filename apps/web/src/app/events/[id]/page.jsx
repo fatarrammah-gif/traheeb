@@ -318,12 +318,11 @@ export default function EventDetailPage() {
                 سعة {event.capacity}
               </span>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }} className="stat-cards">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }} className="stat-cards">
               {[
-                { label: 'إجمالي الضيوف', value: guests.length, icon: '👥' },
-                { label: 'مؤكد', value: confirmed, icon: '✅' },
-                { label: 'مدعو', value: invited, icon: '📨' },
-                { label: 'اعتذر', value: declined, icon: '❌' },
+                { label: 'مدعو', value: guests.length, icon: '📨', desc: 'إجمالي المدعوين' },
+                { label: 'مؤكد', value: confirmed, icon: '✅', desc: 'أكدوا الحضور' },
+                { label: 'معتذر', value: declined, icon: '❌', desc: 'اعتذروا' },
               ].map((s) => (
                 <div key={s.label} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 14, padding: '14px 18px', backdropFilter: 'blur(8px)' }}>
                   <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
@@ -332,6 +331,14 @@ export default function EventDetailPage() {
                 </div>
               ))}
             </div>
+            <a
+              href={`/events/${id}/attendance`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.35)', borderRadius: 12, padding: '10px 20px', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none', marginBottom: 20, backdropFilter: 'blur(8px)', transition: 'background 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.28)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
+            >
+              📋 تفاصيل الحضور
+            </a>
             {event.capacity > 0 && (
               <div>
                 <div style={{ height: 8, background: 'rgba(255,255,255,0.2)', borderRadius: 4, overflow: 'hidden' }}>
