@@ -96,6 +96,7 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [guestSearch, setGuestSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState(null);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newGuest, setNewGuest] = useState({ name: '', phone: '', companions: 0 });
@@ -295,9 +296,11 @@ export default function EventDetailPage() {
   const declined = guests.filter(g => g.status === 'declined').length;
   const pct = event?.capacity ? Math.min(100, Math.round(guests.length / event.capacity * 100)) : 0;
 
-  const filteredGuests = guests.filter(g =>
-    !guestSearch || g.name?.includes(guestSearch) || g.phone?.includes(guestSearch)
-  );
+  const filteredGuests = guests.filter(g => {
+    if (statusFilter && g.status !== statusFilter) return false;
+    if (guestSearch && !g.name?.includes(guestSearch) && !g.phone?.includes(guestSearch)) return false;
+    return true;
+  });
 
   const inp = { width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 14, color: T.text, background: T.surface, outline: 'none', boxSizing: 'border-box', fontFamily: "'Cairo', sans-serif" };
 
@@ -503,6 +506,33 @@ export default function EventDetailPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Mobile filter tags row */}
+                    {(() => {
+                      const FILTERS = [
+                        { status: 'invited',   label: 'مدعو',   bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
+                        { status: 'confirmed', label: 'مؤكد',   bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
+                        { status: 'attended',  label: 'حاضر',   bg: '#F0FDF4', color: '#16A34A', border: '#86EFAC' },
+                        { status: 'declined',  label: 'معتذر',  bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
+                      ];
+                      return (
+                        <div className="guest-filter-bar" style={{ display: 'none', alignItems: 'center', gap: 6, padding: '10px 16px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
+                          {FILTERS.map(f => {
+                            const count = guests.filter(g => g.status === f.status).length;
+                            const active = statusFilter === f.status;
+                            return (
+                              <button key={f.status} onClick={() => setStatusFilter(active ? null : f.status)}
+                                style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20, border: `1.5px solid ${active ? f.color : f.border}`, background: active ? f.color : f.bg, color: active ? '#fff' : f.color, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                {f.label} {count}
+                              </button>
+                            );
+                          })}
+                          <span style={{ marginRight: 'auto', fontSize: 12, color: T.muted, fontWeight: 600 }}>
+                            {filteredGuests.length} نتيجة
+                          </span>
+                        </div>
+                      );
+                    })()}
+
                     {/* Table header */}
                     <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
                       <span>الاسم</span>
@@ -582,10 +612,10 @@ export default function EventDetailPage() {
         @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr !important; } }
         @media (max-width: 600px) { .stat-cards { grid-template-columns: repeat(2, 1fr) !important; } }
         @media (max-width: 768px) {
-          .guest-header, .guest-row { grid-template-columns: 1fr auto !important; }
-          .g-phone, .g-comp, .g-qr, .g-extra { display: none !important; }
-          .g-status-desktop { display: none !important; }
+          .guest-header, .guest-row { grid-template-columns: 1fr !important; }
+          .g-phone, .g-comp, .g-qr, .g-extra, .g-status-desktop { display: none !important; }
           .g-mobile-tags { display: flex !important; }
+          .guest-filter-bar { display: flex !important; }
         }
       `}</style>
     </div>
