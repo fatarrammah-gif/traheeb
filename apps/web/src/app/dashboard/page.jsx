@@ -6,13 +6,6 @@ import { useWebAuth, authFetch } from '../../utils/webAuth.js';
 const LOGO = 'https://dtvoeevhaseb5.cloudfront.net/user-uploads/7881a02c-860c-49fb-be4b-2701f4d65e59.png';
 const GRAD = 'linear-gradient(135deg, #8A004F 0%, #C2185B 45%, #D81B72 100%)';
 
-const HamburgerIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-    <line x1="3" y1="6" x2="21" y2="6" />
-    <line x1="3" y1="12" x2="21" y2="12" />
-    <line x1="3" y1="18" x2="21" y2="18" />
-  </svg>
-);
 
 const T = {
   bg: '#FFF9FB',
@@ -47,11 +40,9 @@ function SkeletonCard() {
 }
 
 function DashHeader({ user, onLogout }) {
-  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div style={{ background: GRAD, position: 'sticky', top: 0, zIndex: 200 }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-        {/* Right: logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center' }}>
             <img src={LOGO} alt="تراحيب" style={{ width: 62, height: 62, objectFit: 'contain', mixBlendMode: 'screen' }} />
@@ -59,9 +50,7 @@ function DashHeader({ user, onLogout }) {
           <div style={{ height: 28, width: 1, background: 'rgba(255,255,255,0.25)' }} />
           <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>لوحة التحكم</span>
         </div>
-
-        {/* Center: desktop nav links */}
-        <div className="dash-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {[
             { label: 'الفعاليات', href: '/dashboard', active: true },
             { label: 'إنشاء فعالية', href: '/events/new' },
@@ -75,61 +64,19 @@ function DashHeader({ user, onLogout }) {
             </a>
           ))}
         </div>
-
-        {/* Left: user pill (desktop) + hamburger (mobile) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {user && (
-            <div
-              className="dash-user-pill"
-              style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 14px 6px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.28)', cursor: 'pointer' }}
-              onClick={onLogout}
-              title="تسجيل الخروج"
-            >
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{user.name}</span>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C2185B', fontWeight: 800, fontSize: 15 }}>
-                {(user.name || 'م').charAt(0)}
-              </div>
+        {user && (
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 14px 6px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.28)', flexShrink: 0, cursor: 'pointer' }}
+            onClick={onLogout}
+            title="تسجيل الخروج"
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{user.name}</span>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C2185B', fontWeight: 800, fontSize: 15 }}>
+              {(user.name || 'م').charAt(0)}
             </div>
-          )}
-          <button
-            className="dash-hamburger"
-            onClick={() => setMenuOpen(o => !o)}
-            style={{ display: 'none', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.28)', borderRadius: 9, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}
-          >
-            {menuOpen ? '✕' : <HamburgerIcon />}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
-
-      {/* Mobile dropdown menu */}
-      {menuOpen && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.18)', padding: '10px 20px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {[
-            { label: 'الفعاليات', href: '/dashboard' },
-            { label: 'إنشاء فعالية', href: '/events/new' },
-          ].map(l => (
-            <a key={l.href} href={l.href}
-              style={{ padding: '13px 18px', borderRadius: 11, fontSize: 16, fontWeight: 600, color: '#fff', background: 'rgba(255,255,255,0.08)', textDecoration: 'none', display: 'block', textAlign: 'right' }}
-            >
-              {l.label}
-            </a>
-          ))}
-          <button
-            onClick={() => { onLogout(); }}
-            style={{ padding: '13px 18px', borderRadius: 11, fontSize: 16, fontWeight: 700, color: '#C2185B', background: '#fff', border: 'none', cursor: 'pointer', textAlign: 'right', marginTop: 4 }}
-          >
-            تسجيل خروج
-          </button>
-        </div>
-      )}
-
-      <style>{`
-        @media (max-width: 768px) {
-          .dash-nav-links  { display: none !important; }
-          .dash-user-pill  { display: none !important; }
-          .dash-hamburger  { display: flex !important; }
-        }
-      `}</style>
     </div>
   );
 }
