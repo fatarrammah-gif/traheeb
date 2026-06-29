@@ -48,8 +48,8 @@ async function sendReminderTemplate({ phone, time, locationSuffix }) {
     to,
     type: 'template',
     template: {
-      name: 'reminder_5',
-      language: { code: 'en_US' },
+      name: 'reminder_6',
+      language: { code: 'ar' },
       components: [
         {
           type: 'body',
