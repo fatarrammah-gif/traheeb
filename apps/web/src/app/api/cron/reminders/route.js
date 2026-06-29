@@ -7,7 +7,7 @@
  * Protected by Authorization: Bearer {CRON_SECRET}
  */
 import sql from '../../utils/sql.js';
-import { sendTextMessage } from '../../../../services/whatsapp/metaSender.js';
+import { sendText } from '../../../../services/whatsapp/sender.js';
 
 const GRAPH_API_VERSION = 'v21.0';
 const PHONE_NUMBER_ID   = process.env.META_PHONE_NUMBER_ID;
@@ -158,10 +158,14 @@ export async function GET(request) {
           sent++;
           console.log(`[cron/reminders] sent to ${guest.phone}`);
 
-          // Follow-up text with correct location link
-          if (locationUrl) {
+          // Follow-up via organizer's personal WhatsApp (no 24h restriction)
+          if (locationUrl && event.user_id) {
             await new Promise(r => setTimeout(r, 500));
-            await sendTextMessage({ phone: guest.phone, text: `📍 موقع الفعالية:\n${locationUrl}` });
+            try {
+              await sendText(event.user_id, guest.phone, `📍 موقع الفعالية:\n${locationUrl}`);
+            } catch (e) {
+              console.error(`[cron/reminders] location text failed for ${guest.phone}:`, e.message);
+            }
           }
         } catch (err) {
           failed++;
