@@ -550,10 +550,10 @@ export default function EventDetailPage() {
                       const isSendingExtra = sendingExtraQR.has(g.id);
                       return (
                         <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '12px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center', background: missingQr > 0 && g.status === 'confirmed' ? '#FFFBEB' : 'transparent' }}>
-                          <div>
+                          <div className="g-name-cell">
                             <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
-                            {/* Mobile-only tags row */}
-                            <div className="g-mobile-tags" style={{ display: 'none', gap: 6, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* Mobile-only tags */}
+                            <div className="g-mobile-tags" style={{ display: 'none', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <StatusBadge status={g.status} />
                               {expectedQr > 0 && (
                                 <span style={{ fontSize: 11, fontWeight: 600, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 6, padding: '2px 7px' }}>
@@ -614,7 +614,8 @@ export default function EventDetailPage() {
         @media (max-width: 768px) {
           .guest-header, .guest-row { grid-template-columns: 1fr !important; }
           .g-phone, .g-comp, .g-qr, .g-extra, .g-status-desktop { display: none !important; }
-          .g-mobile-tags { display: flex !important; }
+          .g-name-cell { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
+          .g-mobile-tags { display: flex !important; flex-shrink: 0; }
           .guest-filter-bar { display: flex !important; }
         }
       `}</style>
