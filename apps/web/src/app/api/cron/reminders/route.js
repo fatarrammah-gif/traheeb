@@ -86,14 +86,12 @@ export async function GET(request) {
   }
 
   try {
-    // Find events happening between 23 and 25 hours from now
+    // Find events happening tomorrow (date stored as YYYY-MM-DD text)
     const events = await sql`
       SELECT *
       FROM traheeb_events
       WHERE date IS NOT NULL
-        AND time IS NOT NULL
-        AND (date || ' ' || time)::timestamptz BETWEEN now() + interval '23 hours'
-                                                     AND now() + interval '25 hours'
+        AND date::date = (CURRENT_DATE + interval '1 day')::date
     `;
 
     console.log(`[cron/reminders] found ${events.length} event(s) in 24h window`);
