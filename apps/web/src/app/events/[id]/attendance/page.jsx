@@ -104,7 +104,7 @@ export default function AttendancePage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: '0 0 16px' }}>
             تفاصيل الحضور — {event?.name ?? ''}
           </h1>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, maxWidth: 500 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, maxWidth: 500, marginBottom: 20 }}>
             {[
               { label: 'إجمالي المرافقين', value: rows.length, icon: '🎫' },
               { label: 'حاضر', value: attendedCount, icon: '✅' },
@@ -117,6 +117,32 @@ export default function AttendancePage() {
               </div>
             ))}
           </div>
+
+          {/* Capacity progress bar */}
+          {event?.capacity > 0 && (() => {
+            const capacity = event.capacity;
+            const pct = Math.min(100, Math.round((attendedCount / capacity) * 100));
+            const remaining = Math.max(0, capacity - attendedCount);
+            return (
+              <div style={{ maxWidth: 500 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>
+                    نسبة الحضور من السعة الكلية
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
+                    {attendedCount} / {capacity}
+                  </span>
+                </div>
+                <div style={{ height: 10, background: 'rgba(255,255,255,0.2)', borderRadius: 6, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: '#fff', borderRadius: 6, transition: 'width 0.4s ease' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{pct}% ممتلئ</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>متبقي {remaining} مقعد</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
       <div style={{ background: GRAD }}>
