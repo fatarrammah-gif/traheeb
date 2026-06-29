@@ -110,6 +110,10 @@ export default function EventDetailPage() {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
+  // Reminder tracking
+  const [reminderStats, setReminderStats] = useState(null); // { sent, delivered, read, failed, pending }
+  const [sendingReminder, setSendingReminder] = useState(false);
+
   // Staff management
   const [staff, setStaff] = useState([]);
   const [newStaffPhone, setNewStaffPhone] = useState('');
@@ -127,11 +131,13 @@ export default function EventDetailPage() {
     Promise.all([
       authFetch(`/api/events/${id}`).then(r => r.json()),
       authFetch(`/api/events/${id}/staff`).then(r => r.json()).catch(() => ({ staff: [] })),
-    ]).then(([data, staffData]) => {
+      authFetch(`/api/events/${id}/reminders`).then(r => r.json()).catch(() => ({ stats: null })),
+    ]).then(([data, staffData, rData]) => {
       if (data.event) setEvent(data.event);
       if (Array.isArray(data.guests)) setGuests(data.guests);
       if (data.error) setError(data.error);
       if (Array.isArray(staffData.staff)) setStaff(staffData.staff);
+      if (rData.stats) setReminderStats(rData.stats);
     }).catch(() => setError('حدث خطأ في تحميل الفعالية'))
       .finally(() => setLoading(false));
   }, [token, id]);
@@ -328,6 +334,20 @@ export default function EventDetailPage() {
       });
       setStaff(prev => prev.filter(s => s.phone !== phone));
     } catch { setToast({ message: 'حدث خطأ في الحذف', type: 'error' }); }
+  }
+
+  async function handleSendReminder() {
+    setSendingReminder(true);
+    try {
+      const res = await authFetch(`/api/events/${id}/reminders`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { setToast({ message: data.error || 'حدث خطأ', type: 'error' }); return; }
+      setToast({ message: `تم إرسال ${data.sent} تذكير`, type: 'success' });
+      // Refresh stats
+      const rData = await authFetch(`/api/events/${id}/reminders`).then(r => r.json());
+      if (rData.stats) setReminderStats(rData.stats);
+    } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
+    finally { setSendingReminder(false); }
   }
 
   if (!token) return null;
@@ -538,6 +558,39 @@ export default function EventDetailPage() {
                   📋 نسخ رابط دخول الفريق
                 </button>
               </div>
+
+              {/* Reminder card — only shown when there are confirmed guests */}
+              {confirmed > 0 && (
+                <div style={{ background: T.surface, borderRadius: 20, padding: 20, border: `1px solid ${T.border}` }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: '0 0 14px' }}>🔔 تذكير الحضور</h3>
+
+                  {/* Stats row */}
+                  {reminderStats && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                      {[
+                        { label: 'وصل', value: (reminderStats.delivered || 0) + (reminderStats.read || 0), color: '#059669', bg: '#ECFDF5' },
+                        { label: 'مرسل', value: reminderStats.sent || 0, color: '#D97706', bg: '#FFFBEB' },
+                        { label: 'فشل', value: reminderStats.failed || 0, color: '#EF4444', bg: '#FEF2F2' },
+                      ].map(s => (
+                        <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '8px 6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
+                          <div style={{ fontSize: 11, color: s.color, marginTop: 2 }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button onClick={handleSendReminder} disabled={sendingReminder}
+                    style={{ width: '100%', background: GRAD, color: '#fff', border: 'none', borderRadius: 12, padding: '10px', fontSize: 14, fontWeight: 700, cursor: sendingReminder ? 'not-allowed' : 'pointer', opacity: sendingReminder ? 0.7 : 1, fontFamily: "'Cairo', sans-serif" }}>
+                    {sendingReminder ? 'جارٍ الإرسال...' : reminderStats?.sent > 0 ? 'إعادة إرسال لغير المستلمين' : 'إرسال تذكير'}
+                  </button>
+                  {reminderStats?.pending > 0 && (
+                    <p style={{ fontSize: 12, color: T.muted, margin: '8px 0 0', textAlign: 'center' }}>
+                      {reminderStats.pending} مدعو لم يُرسل لهم بعد
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Guest list */}

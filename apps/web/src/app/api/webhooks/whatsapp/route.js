@@ -45,6 +45,12 @@ export async function POST(request) {
             console.error('[Webhook] handler error:', err.message)
           );
         }
+        const statuses = change.value?.statuses ?? [];
+        for (const s of statuses) {
+          await handleStatus(s).catch(err =>
+            console.error('[Webhook] status error:', err.message)
+          );
+        }
       }
     }
 
@@ -53,6 +59,17 @@ export async function POST(request) {
     console.error('[Webhook] POST error:', err.message);
     return Response.json({ status: 'error' }, { status: 200 });
   }
+}
+
+async function handleStatus(s) {
+  // s.id = message_id, s.status = 'sent'|'delivered'|'read'|'failed'
+  if (!['delivered', 'read', 'failed'].includes(s.status)) return;
+  await sql`
+    UPDATE traheeb_reminders
+    SET status = ${s.status}, updated_at = now()
+    WHERE message_id = ${s.id}
+  `;
+  console.log(`[Webhook] reminder status ${s.id} → ${s.status}`);
 }
 
 async function handleMessage(msg) {
