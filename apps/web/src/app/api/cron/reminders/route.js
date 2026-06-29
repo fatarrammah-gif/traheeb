@@ -21,14 +21,31 @@ function normalisePhone(phone) {
   return p.replace(/[^0-9]/g, '');
 }
 
+function extractCoordsFromUrl(url) {
+  if (!url) return null;
+  // !3d!4d = exact pin (most accurate)
+  const pinMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (pinMatch) return { lat: parseFloat(pinMatch[1]), lng: parseFloat(pinMatch[2]) };
+  // @ = viewport center (fallback)
+  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+  // ?q=lat,lng
+  const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+  return null;
+}
+
 function buildLocationSuffix(event) {
-  if (event.map_lat && event.map_lng) {
-    // Template button: https://www.google.com/maps?q={{1}}
-    // suffix = lat,lng → full URL: https://www.google.com/maps?q=lat,lng
-    return `${event.map_lat},${event.map_lng}`;
-  }
+  // Try extracting pin coords from the original stored location URL first
+  const fromUrl = extractCoordsFromUrl(event.location);
+  if (fromUrl) return `?q=${fromUrl.lat},${fromUrl.lng}`;
+
+  // Fall back to stored lat/lng
+  if (event.map_lat && event.map_lng) return `?q=${event.map_lat},${event.map_lng}`;
+
+  // Last resort: venue name search
   const query = [event.venue, event.location].filter(Boolean).join(' ');
-  return encodeURIComponent(query);
+  return `?q=${encodeURIComponent(query)}`;
 }
 
 async function sendReminder({ phone, time, locationSuffix }) {
