@@ -443,19 +443,17 @@ export default function EventDetailPage() {
                   <input value={guestSearch} onChange={e => setGuestSearch(e.target.value)} placeholder="ابحث في المدعوين..."
                     style={{ ...inp, marginBottom: 12 }} />
 
-                  {/* Import buttons */}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {/* Import buttons — hidden, kept for future use */}
+                  <div style={{ display: 'none' }}>
                     {contactsSupported ? (
-                      <button onClick={handlePickContacts} style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>📱 جهات الاتصال</button>
-                    ) : (
-                      <span style={{ fontSize: 11, color: T.muted, padding: '6px 12px', background: '#F9FAFB', borderRadius: 8, border: `1px solid ${T.border}` }}>💡 افتح في Chrome لجهات الاتصال</span>
-                    )}
-                    <button onClick={() => vcfInputRef.current?.click()} style={{ background: '#F9FAFB', color: T.muted, border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>📁 VCF</button>
+                      <button onClick={handlePickContacts}>📱 جهات الاتصال</button>
+                    ) : null}
+                    <button onClick={() => vcfInputRef.current?.click()}>📁 VCF</button>
                     <input ref={vcfInputRef} type="file" accept=".vcf,text/vcard,text/x-vcard" onChange={handleVCFUpload} style={{ display: 'none' }} />
-                    <button onClick={() => xlsxInputRef.current?.click()} style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>📊 Excel</button>
+                    <button onClick={() => xlsxInputRef.current?.click()}>📊 Excel</button>
                     <input ref={xlsxInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} style={{ display: 'none' }} />
-                    <button onClick={() => { setShowBulkPaste(v => !v); setShowAddForm(false); }} style={{ background: showBulkPaste ? '#FFFBEB' : '#F9FAFB', color: showBulkPaste ? '#D97706' : T.muted, border: `1px solid ${showBulkPaste ? '#FDE68A' : T.border}`, borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>📋 لصق قائمة</button>
-                    <button onClick={() => csvInputRef.current?.click()} style={{ background: '#F9FAFB', color: T.muted, border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>CSV</button>
+                    <button onClick={() => { setShowBulkPaste(v => !v); setShowAddForm(false); }}>📋 لصق قائمة</button>
+                    <button onClick={() => csvInputRef.current?.click()}>CSV</button>
                     <input ref={csvInputRef} type="file" accept=".csv,text/csv" onChange={handleCSVUpload} style={{ display: 'none' }} />
                   </div>
                 </div>
