@@ -499,6 +499,33 @@ export default function EventDetailPage() {
                   </div>
                 )}
 
+                {/* Mobile filter tags row — always visible on mobile when guests exist */}
+                {guests.length > 0 && (() => {
+                  const FILTERS = [
+                    { status: 'invited',   label: 'مدعو',   bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
+                    { status: 'confirmed', label: 'مؤكد',   bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
+                    { status: 'attended',  label: 'حاضر',   bg: '#F0FDF4', color: '#16A34A', border: '#86EFAC' },
+                    { status: 'declined',  label: 'معتذر',  bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
+                  ];
+                  return (
+                    <div className="guest-filter-bar" style={{ display: 'none', alignItems: 'center', gap: 6, padding: '10px 16px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
+                      {FILTERS.map(f => {
+                        const count = guests.filter(g => g.status === f.status).length;
+                        const active = statusFilter === f.status;
+                        return (
+                          <button key={f.status} onClick={() => setStatusFilter(active ? null : f.status)}
+                            style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20, border: `1.5px solid ${active ? f.color : f.border}`, background: active ? f.color : f.bg, color: active ? '#fff' : f.color, cursor: 'pointer', transition: 'all 0.15s' }}>
+                            {f.label} {count}
+                          </button>
+                        );
+                      })}
+                      <span style={{ marginRight: 'auto', fontSize: 12, color: T.muted, fontWeight: 600 }}>
+                        {filteredGuests.length} نتيجة
+                      </span>
+                    </div>
+                  );
+                })()}
+
                 {/* Guest rows */}
                 {filteredGuests.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '40px 20px', color: T.muted, fontSize: 15 }}>
@@ -506,33 +533,6 @@ export default function EventDetailPage() {
                   </div>
                 ) : (
                   <>
-                    {/* Mobile filter tags row */}
-                    {(() => {
-                      const FILTERS = [
-                        { status: 'invited',   label: 'مدعو',   bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-                        { status: 'confirmed', label: 'مؤكد',   bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
-                        { status: 'attended',  label: 'حاضر',   bg: '#F0FDF4', color: '#16A34A', border: '#86EFAC' },
-                        { status: 'declined',  label: 'معتذر',  bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
-                      ];
-                      return (
-                        <div className="guest-filter-bar" style={{ display: 'none', alignItems: 'center', gap: 6, padding: '10px 16px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
-                          {FILTERS.map(f => {
-                            const count = guests.filter(g => g.status === f.status).length;
-                            const active = statusFilter === f.status;
-                            return (
-                              <button key={f.status} onClick={() => setStatusFilter(active ? null : f.status)}
-                                style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20, border: `1.5px solid ${active ? f.color : f.border}`, background: active ? f.color : f.bg, color: active ? '#fff' : f.color, cursor: 'pointer', transition: 'all 0.15s' }}>
-                                {f.label} {count}
-                              </button>
-                            );
-                          })}
-                          <span style={{ marginRight: 'auto', fontSize: 12, color: T.muted, fontWeight: 600 }}>
-                            {filteredGuests.length} نتيجة
-                          </span>
-                        </div>
-                      );
-                    })()}
-
                     {/* Table header */}
                     <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
                       <span>الاسم</span>
