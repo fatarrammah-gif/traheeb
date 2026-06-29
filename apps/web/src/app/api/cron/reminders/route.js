@@ -116,6 +116,7 @@ export async function GET(request) {
 
     let sent = 0;
     let failed = 0;
+    const errors = [];
 
     for (const event of events) {
       const guests = await sql`
@@ -136,6 +137,7 @@ export async function GET(request) {
           console.log(`[cron/reminders] sent to ${guest.phone}`);
         } catch (err) {
           failed++;
+          errors.push({ phone: guest.phone, error: err.message });
           console.error(`[cron/reminders] failed for ${guest.phone}:`, err.message);
         }
 
@@ -149,6 +151,7 @@ export async function GET(request) {
       events: events.length,
       sent,
       failed,
+      errors,
     });
   } catch (err) {
     console.error('[cron/reminders]', err);
