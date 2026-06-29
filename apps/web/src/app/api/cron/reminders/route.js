@@ -87,11 +87,15 @@ export async function GET(request) {
 
   try {
     // Find events happening tomorrow (date stored as YYYY-MM-DD text)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10); // YYYY-MM-DD
+
     const events = await sql`
       SELECT *
       FROM traheeb_events
       WHERE date IS NOT NULL
-        AND date::date = (CURRENT_DATE + interval '1 day')::date
+        AND date LIKE ${tomorrowStr + '%'}
     `;
 
     console.log(`[cron/reminders] found ${events.length} event(s) in 24h window`);
