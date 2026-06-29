@@ -174,15 +174,15 @@ function PhoneMockup({ src }) {
     <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
       <div
         style={{
-          width: 295,
-          height: 520,
+          width: 220,
+          height: 440,
           borderRadius: 38,
           overflow: 'hidden',
           border: '3px solid #F2E0EB',
           boxShadow: '0 24px 64px rgba(138,0,79,0.16), 0 4px 16px rgba(0,0,0,0.08)',
         }}
       >
-        <img src={src} alt="" style={{ width: '100%', height: '88%', objectFit: 'cover', display: 'block' }} />
+        <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     </div>
   );
