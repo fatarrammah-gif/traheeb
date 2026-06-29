@@ -506,13 +506,13 @@ export default function EventDetailPage() {
                 ) : (
                   <>
                     {/* Table header */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
+                    <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
                       <span>الاسم</span>
-                      <span>رقم الجوال</span>
-                      <span>مرافقون</span>
-                      <span>رموز QR</span>
-                      <span>الحالة</span>
-                      <span>إضافي</span>
+                      <span className="g-phone">رقم الجوال</span>
+                      <span className="g-comp">مرافقون</span>
+                      <span className="g-qr">رموز QR</span>
+                      <span className="g-status-desktop">الحالة</span>
+                      <span className="g-extra">إضافي</span>
                     </div>
                     {filteredGuests.map((g, i) => {
                       const companionQr = (g.qr_tokens ?? []).filter((q) => q.label?.startsWith('companion-')).length;
@@ -521,11 +521,22 @@ export default function EventDetailPage() {
                       const isResending = resendingGuests.has(g.id);
                       const isSendingExtra = sendingExtraQR.has(g.id);
                       return (
-                        <div key={g.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '12px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center', background: missingQr > 0 && g.status === 'confirmed' ? '#FFFBEB' : 'transparent' }}>
-                          <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
-                          <span style={{ color: T.muted, direction: 'ltr', textAlign: 'right', fontSize: 13 }}>{g.phone}</span>
-                          <span style={{ color: T.muted }}>{expectedQr}</span>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '12px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center', background: missingQr > 0 && g.status === 'confirmed' ? '#FFFBEB' : 'transparent' }}>
+                          <div>
+                            <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
+                            {/* Mobile-only tags row */}
+                            <div className="g-mobile-tags" style={{ display: 'none', gap: 6, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <StatusBadge status={g.status} />
+                              {expectedQr > 0 && (
+                                <span style={{ fontSize: 11, fontWeight: 600, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 6, padding: '2px 7px' }}>
+                                  {expectedQr} مرافق
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="g-phone" style={{ color: T.muted, direction: 'ltr', textAlign: 'right', fontSize: 13 }}>{g.phone}</span>
+                          <span className="g-comp" style={{ color: T.muted }}>{expectedQr}</span>
+                          <div className="g-qr" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                             {expectedQr === 0 || (g.status !== 'confirmed' && g.status !== 'attended') ? (
                               <span style={{ color: T.border, fontSize: 13 }}>—</span>
                             ) : missingQr > 0 ? (
@@ -550,8 +561,8 @@ export default function EventDetailPage() {
                               </div>
                             )}
                           </div>
-                          <StatusBadge status={g.status} />
-                          <button onClick={() => handleExtraQR(g.id)} disabled={g.extra_qr_sent || isSendingExtra}
+                          <span className="g-status-desktop"><StatusBadge status={g.status} /></span>
+                          <button className="g-extra" onClick={() => handleExtraQR(g.id)} disabled={g.extra_qr_sent || isSendingExtra}
                             title={g.extra_qr_sent ? 'تم إرسال رمز QR الإضافي مسبقاً' : 'إرسال رمز QR إضافي'}
                             style={{ background: g.extra_qr_sent ? '#F9FAFB' : T.primarySoft, color: g.extra_qr_sent ? T.muted : T.primary, border: `1px solid ${g.extra_qr_sent ? T.border : T.border}`, borderRadius: 8, padding: '5px 10px', fontSize: 16, cursor: g.extra_qr_sent || isSendingExtra ? 'not-allowed' : 'pointer', opacity: isSendingExtra ? 0.6 : 1, lineHeight: 1 }}>
                             {isSendingExtra ? '...' : g.extra_qr_sent ? '✓' : '+'}
@@ -572,6 +583,12 @@ export default function EventDetailPage() {
       <style>{`
         @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr !important; } }
         @media (max-width: 600px) { .stat-cards { grid-template-columns: repeat(2, 1fr) !important; } }
+        @media (max-width: 768px) {
+          .guest-header, .guest-row { grid-template-columns: 1fr auto !important; }
+          .g-phone, .g-comp, .g-qr, .g-extra { display: none !important; }
+          .g-status-desktop { display: none !important; }
+          .g-mobile-tags { display: flex !important; }
+        }
       `}</style>
     </div>
   );
