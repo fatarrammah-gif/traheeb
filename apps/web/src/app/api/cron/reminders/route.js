@@ -86,10 +86,10 @@ export async function GET(request) {
   }
 
   try {
-    // Find events happening tomorrow (date stored as YYYY-MM-DD text)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10); // YYYY-MM-DD
+    // Find events happening tomorrow in Saudi Arabia time (UTC+3)
+    const nowSaudi = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    const tomorrowSaudi = new Date(nowSaudi.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowStr = tomorrowSaudi.toISOString().slice(0, 10); // YYYY-MM-DD
 
     const events = await sql`
       SELECT *
