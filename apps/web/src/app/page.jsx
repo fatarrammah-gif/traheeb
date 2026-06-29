@@ -174,7 +174,7 @@ function PhoneMockup({ src }) {
     <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
       <div
         style={{
-          width: 260,
+          width: 278,
           height: 520,
           borderRadius: 38,
           overflow: 'hidden',
