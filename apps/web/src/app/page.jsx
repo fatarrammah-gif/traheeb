@@ -175,7 +175,7 @@ function PhoneMockup({ src }) {
       <div
         style={{
           width: 295,
-          height: 545,
+          height: 520,
           borderRadius: 38,
           overflow: 'hidden',
           border: '3px solid #F2E0EB',
