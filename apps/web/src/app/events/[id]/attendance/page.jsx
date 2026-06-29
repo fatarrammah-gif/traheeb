@@ -57,6 +57,7 @@ export default function AttendancePage() {
       rows.push({
         guestName: g.name,
         guestPhone: g.phone,
+        label: `مرافق ${t.label?.replace('companion-', '') ?? ''}`,
         attended: !!t.used,
       });
     });
@@ -153,13 +154,17 @@ export default function AttendancePage() {
         ) : (
           <div style={{ background: T.surface, borderRadius: 20, border: `1px solid ${T.border}`, overflow: 'hidden', boxShadow: '0 2px 12px rgba(138,0,79,0.05)' }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', padding: '12px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 700, color: T.muted, background: T.primarySoft }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 90px', padding: '12px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 700, color: T.muted, background: T.primarySoft }}>
               <span>المدعو</span>
+              <span>النوع</span>
               <span>الحالة</span>
             </div>
             {filtered.map((r, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px', padding: '13px 24px', borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'center', fontSize: 14, background: r.attended ? '#F0FDF4' : 'transparent' }}>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 90px', padding: '13px 24px', borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'center', fontSize: 14, background: r.attended ? '#F0FDF4' : 'transparent' }}>
                 <div style={{ fontWeight: 600, color: T.text }}>{r.guestName}</div>
+                <span style={{ fontSize: 12, fontWeight: 600, background: '#EFF6FF', color: '#2563EB', borderRadius: 8, padding: '3px 10px', display: 'inline-block' }}>
+                  {r.label}
+                </span>
                 <span style={{ fontSize: 12, fontWeight: 700, background: r.attended ? '#ECFDF5' : '#FEF2F2', color: r.attended ? '#059669' : '#EF4444', borderRadius: 8, padding: '3px 10px', border: `1px solid ${r.attended ? '#A7F3D0' : '#FECACA'}`, display: 'inline-block' }}>
                   {r.attended ? 'حاضر' : 'متغيب'}
                 </span>
