@@ -7,6 +7,7 @@
  * Protected by Authorization: Bearer {CRON_SECRET}
  */
 import sql from '../../utils/sql.js';
+import { sendTextMessage } from '../../../../services/whatsapp/metaSender.js';
 
 const GRAPH_API_VERSION = 'v21.0';
 const PHONE_NUMBER_ID   = process.env.META_PHONE_NUMBER_ID;
@@ -147,11 +148,21 @@ export async function GET(request) {
       const locationSuffix = buildLocationSuffix(event);
       const time = event.time?.slice(0, 5) ?? '-';
 
+      const coords = extractCoordsFromUrl(event.location)
+        || (event.map_lat && event.map_lng ? { lat: event.map_lat, lng: event.map_lng } : null);
+      const locationUrl = coords ? `https://www.google.com/maps?q=${coords.lat},${coords.lng}` : null;
+
       for (const guest of guests) {
         try {
           await sendReminder({ phone: guest.phone, time, locationSuffix });
           sent++;
           console.log(`[cron/reminders] sent to ${guest.phone}`);
+
+          // Follow-up text with correct location link
+          if (locationUrl) {
+            await new Promise(r => setTimeout(r, 500));
+            await sendTextMessage({ phone: guest.phone, text: `📍 موقع الفعالية:\n${locationUrl}` });
+          }
         } catch (err) {
           failed++;
           errors.push({ phone: guest.phone, error: err.message });
