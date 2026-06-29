@@ -12,7 +12,7 @@ const WHATSAPP = '966538384048';
 const SCREENS = [
   '/step_1.jpeg',
   '/step_2.jpeg',
-  '/step_3.png',
+  '/step_3_3.png',
   '/step_4.jpeg',
   '/step_5.jpeg',
 ];
