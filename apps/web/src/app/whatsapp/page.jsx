@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useWebAuth, authFetch } from '../../utils/webAuth.js';
 
+
 const LOGO = 'https://dtvoeevhaseb5.cloudfront.net/user-uploads/7881a02c-860c-49fb-be4b-2701f4d65e59.png';
 const GRAD = 'linear-gradient(135deg, #8A004F 0%, #C2185B 45%, #D81B72 100%)';
 
@@ -19,16 +20,22 @@ const T = {
 };
 
 export default function WhatsAppConnectPage() {
-  const { ready, user } = useWebAuth();
+  const token = useWebAuth((s) => s.token);
+  const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState('idle'); // idle | loading | qr_ready | connected | error
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const pollRef = useRef(null);
 
   useEffect(() => {
-    if (!ready || !user) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!token) { window.location.href = '/login'; return; }
     checkStatus();
     return () => clearInterval(pollRef.current);
-  }, [ready, user]);
+  }, [mounted, token]);
 
   async function checkStatus() {
     try {
@@ -85,11 +92,7 @@ export default function WhatsAppConnectPage() {
     }, 3000);
   }
 
-  if (!ready) return null;
-  if (!user) {
-    if (typeof window !== 'undefined') window.location.href = '/login';
-    return null;
-  }
+  if (!mounted || !token) return null;
 
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: T.bg, fontFamily: "'Cairo', sans-serif", display: 'flex', flexDirection: 'column' }}>
