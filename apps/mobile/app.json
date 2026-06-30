@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon-1.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "scheme": "traheeb",
     "ios": {
       "supportsTablet": false,
