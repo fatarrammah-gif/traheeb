@@ -67,7 +67,7 @@ export default function WhatsAppConnectPage() {
 
   async function handleDisconnect() {
     try {
-      await authFetch('/api/whatsapp/disconnect', { method: 'POST' });
+      await authFetch('/api/whatsapp/disconnect', { method: 'DELETE' });
       setStatus('idle');
       setQrDataUrl(null);
       clearInterval(pollRef.current);
