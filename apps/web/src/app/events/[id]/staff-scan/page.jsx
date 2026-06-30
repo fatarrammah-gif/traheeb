@@ -95,9 +95,13 @@ export default function StaffScanPage() {
         });
         streamRef.current = stream;
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        if (!videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        try {
           await videoRef.current.play();
+        } catch (playErr) {
+          if (playErr.name === 'AbortError') return;
+          throw playErr;
         }
 
         await new Promise((resolve) => {
