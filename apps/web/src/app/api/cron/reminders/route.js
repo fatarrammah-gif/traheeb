@@ -13,7 +13,6 @@ const GRAPH_API_VERSION  = 'v21.0';
 const PHONE_NUMBER_ID    = process.env.META_PHONE_NUMBER_ID;
 const ACCESS_TOKEN       = process.env.META_ACCESS_TOKEN;
 const CRON_SECRET        = process.env.CRON_SECRET;
-const SENDER_USER_ID     = process.env.WHATSAPP_SENDER_USER_ID;
 
 function normalisePhone(phone) {
   let p = String(phone).replace(/[\s\-().+]/g, '');
@@ -160,11 +159,10 @@ export async function GET(request) {
           console.log(`[cron/reminders] sent to ${guest.phone}`);
 
           // Follow-up via organizer's personal WhatsApp (no 24h restriction)
-          const senderUserId = SENDER_USER_ID || event.user_id;
-          if (locationUrl && senderUserId) {
+          if (locationUrl && event.user_id) {
             await new Promise(r => setTimeout(r, 500));
             try {
-              await sendText(senderUserId, guest.phone, `📍 موقع الفعالية:\n${locationUrl}`);
+              await sendText(event.user_id, guest.phone, `📍 موقع الفعالية:\n${locationUrl}`);
             } catch (e) {
               console.error(`[cron/reminders] location text failed for ${guest.phone}:`, e.message);
             }

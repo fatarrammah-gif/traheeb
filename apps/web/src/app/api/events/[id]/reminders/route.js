@@ -8,10 +8,6 @@ import { authenticate } from '../../../utils/auth.js';
 import sql from '../../../utils/sql.js';
 import { sendText } from '../../../../../services/whatsapp/sender.js';
 
-// App-owner WhatsApp session used for all outgoing reminders.
-// Set WHATSAPP_SENDER_USER_ID in Railway env vars to the app owner's user ID.
-const SENDER_USER_ID = process.env.WHATSAPP_SENDER_USER_ID;
-
 const ARABIC_DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 function extractCoordsFromUrl(url) {
@@ -117,8 +113,6 @@ export async function POST(request, { params }) {
     if (!events.length) return Response.json({ error: 'الفعالية غير موجودة' }, { status: 404 });
     const event = events[0];
 
-    const senderUserId = SENDER_USER_ID || user.id;
-
     const confirmedGuests = await sql`
       SELECT id, phone FROM traheeb_guests
       WHERE event_id = ${eventId} AND status = 'confirmed'
@@ -145,7 +139,7 @@ export async function POST(request, { params }) {
     let sent = 0;
     for (const guest of toSend) {
       try {
-        await sendText(senderUserId, guest.phone, messageText);
+        await sendText(user.id, guest.phone, messageText);
 
         await sql`
           INSERT INTO traheeb_reminders (event_id, guest_id, phone, message_id, status)
