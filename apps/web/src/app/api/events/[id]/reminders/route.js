@@ -35,20 +35,16 @@ function formatTimeArabic(timeStr) {
   const [h, m] = String(timeStr).slice(0, 5).split(':').map(Number);
   const period = h >= 12 ? 'مساءً' : 'صباحاً';
   const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+  const toArabicNumerals = n => String(n).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+  return `${toArabicNumerals(hour12)}:${toArabicNumerals(String(m).padStart(2, '0'))} ${period}`;
 }
 
 function buildReminderText(event) {
-  let dayName = '';
-  if (event.date) {
-    const d = new Date(event.date);
-    dayName = ARABIC_DAYS[d.getUTCDay()];
-  }
-
+  const time = formatTimeArabic(event.time);
   const locationUrl = buildLocationUrl(event);
 
   let text =
-    `🌟 يسرّنا تذكيركم بأن موعد ${event.name} هو اليوم ${dayName} 🎓\n\n` +
+    `🌟 يسرّنا تذكيركم بأن موعد حفل التخرج هو اليوم الثلاثاء عند الساعة ${time} 🎓\n\n` +
     `🕒 نأمل منكم التكرم بالحضور قبل موعد بدء الحفل بوقتٍ كافٍ، لتسهيل إجراءات الدخول.\n\n` +
     `🎫 يرجى إبراز رمز (QR Code) الموجود في بطاقة الدعوة عند البوابة.\n\n` +
     `✨ حضوركم يشرفنا، ومشاركتكم تضفي على احتفالنا بهجةً وسرورًا.\n\n` +
