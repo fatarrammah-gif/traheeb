@@ -19,6 +19,63 @@ const T = {
   greenSoft: '#ECFDF5',
 };
 
+function LoadingProgress() {
+  const [seconds, setSeconds] = useState(0);
+  const TOTAL = 40;
+
+  useEffect(() => {
+    const t = setInterval(() => setSeconds(s => Math.min(s + 1, TOTAL)), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const pct = Math.round((seconds / TOTAL) * 100);
+  const steps = [
+    { label: 'تشغيل المتصفح', done: seconds >= 5 },
+    { label: 'تحميل واتساب ويب', done: seconds >= 20 },
+    { label: 'توليد رمز QR', done: seconds >= 35 },
+  ];
+
+  return (
+    <div style={{ textAlign: 'center', padding: '8px 0' }}>
+      <div style={{ fontSize: 40, marginBottom: 16 }}>⚙️</div>
+      <p style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: '0 0 6px' }}>جاري التحضير...</p>
+      <p style={{ fontSize: 13, color: T.muted, margin: '0 0 24px' }}>قد يستغرق حتى 40 ثانية</p>
+
+      {/* Progress bar */}
+      <div style={{ background: T.border, borderRadius: 99, height: 8, marginBottom: 20, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 99,
+          background: GRAD,
+          width: `${pct}%`,
+          transition: 'width 0.8s ease',
+        }} />
+      </div>
+
+      {/* Steps */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'right' }}>
+        {steps.map((step, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+              background: step.done ? '#059669' : T.border,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, color: '#fff', fontWeight: 700,
+              transition: 'background 0.4s',
+            }}>
+              {step.done ? '✓' : i + 1}
+            </div>
+            <span style={{ fontSize: 13, color: step.done ? '#059669' : T.muted, fontWeight: step.done ? 600 : 400 }}>
+              {step.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 12, color: T.muted, marginTop: 20 }}>{seconds} / {TOTAL} ثانية</p>
+    </div>
+  );
+}
+
 export default function WhatsAppConnectPage() {
   const token = useWebAuth((s) => s.token);
   const [mounted, setMounted] = useState(false);
@@ -147,13 +204,7 @@ export default function WhatsAppConnectPage() {
             )}
 
             {/* Loading */}
-            {status === 'loading' && (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 36, marginBottom: 16 }}>⏳</div>
-                <p style={{ fontSize: 15, color: T.muted, margin: 0 }}>جاري تحضير رمز QR...</p>
-                <p style={{ fontSize: 13, color: T.muted, marginTop: 8 }}>قد يستغرق هذا بضع ثوانٍ</p>
-              </div>
-            )}
+            {status === 'loading' && <LoadingProgress />}
 
             {/* QR Ready */}
             {status === 'qr_ready' && qrDataUrl && (
