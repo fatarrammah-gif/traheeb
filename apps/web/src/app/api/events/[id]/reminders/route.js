@@ -39,8 +39,6 @@ function formatTimeArabic(timeStr) {
 }
 
 function buildReminderText(event) {
-  const time = formatTimeArabic(event.time);
-
   let dayName = '';
   if (event.date) {
     const d = new Date(event.date);
@@ -50,8 +48,11 @@ function buildReminderText(event) {
   const locationUrl = buildLocationUrl(event);
 
   let text =
-    `نذكركم بموعد ${event.name} اليوم ${dayName} عند الساعة ${time}، ` +
-    `ويسعدنا حضوركم ومشاركتكم هذه المناسبة المميزة.`;
+    `🌟 يسرّنا تذكيركم بأن موعد ${event.name} هو اليوم ${dayName} 🎓\n\n` +
+    `🕒 نأمل منكم التكرم بالحضور قبل موعد بدء الحفل بوقتٍ كافٍ، لتسهيل إجراءات الدخول.\n\n` +
+    `🎫 يرجى إبراز رمز (QR Code) الموجود في بطاقة الدعوة عند البوابة.\n\n` +
+    `✨ حضوركم يشرفنا، ومشاركتكم تضفي على احتفالنا بهجةً وسرورًا.\n\n` +
+    `💐 بانتظاركم بكل تراحيب`;
 
   if (locationUrl) {
     text += `\n\n📍 *موقع الفعالية:*\n${locationUrl}`;
