@@ -589,6 +589,9 @@ export default function EventDetailPage() {
                       {reminderStats.pending} مدعو لم يُرسل لهم بعد
                     </p>
                   )}
+                  <a href="/whatsapp" style={{ display: 'block', textAlign: 'center', fontSize: 12, color: T.primary, marginTop: 10, textDecoration: 'none' }}>
+                    📱 ربط واتساب للإرسال
+                  </a>
                 </div>
               )}
             </div>
