@@ -127,6 +127,17 @@ export async function POST(request, { params }) {
 
 
 
+function formatTime12Arabic(timeStr) {
+  if (!timeStr) return '-';
+  const [hStr, mStr] = String(timeStr).split(':');
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr || '0', 10);
+  const period = h < 12 ? 'صباحاً' : 'مساءً';
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${h}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 function buildLocationLink(event) {
   if (event.map_lat && event.map_lng) {
     return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
@@ -148,7 +159,7 @@ async function sendInvitations(event, guests) {
         guestName: guest.name || '-',
         invitationText: event.invitation_text || '-',
         date: event.date || '-',
-        time: event.time || '-',
+        time: formatTime12Arabic(event.time),
         venueName: event.venue || '-',
         companionsLabel: companionsLabel || '0',
         locationLink,                              // short redirect → template {{link}}
