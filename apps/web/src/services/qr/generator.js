@@ -278,6 +278,14 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
   const imgW = meta.width;
   const imgH = meta.height;
 
+  // Extract logo color and darken further for QR modules
+  let qrDarkColor = '#111111';
+  if (logoBuffer) {
+    const baseColor = await extractDarkestColor(logoBuffer);
+    qrDarkColor = darkenHex(baseColor, 0.35); // darken 35% beyond the already-dark extracted color
+    console.log(`[generator] overlay QR color: base=${baseColor} darkened=${qrDarkColor}`);
+  }
+
   // QR size: ~22% of the shorter side, clamped between 120–300 px
   const qrSize = Math.max(120, Math.min(300, Math.round(Math.min(imgW, imgH) * 0.22)));
   const margin = Math.round(imgW * 0.04); // 4% of width as bottom/side margin
@@ -288,7 +296,7 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
     width: qrSize,
     margin: 2,
     errorCorrectionLevel: 'H',
-    color: { dark: '#111111', light: '#FFFFFF' },
+    color: { dark: qrDarkColor, light: '#FFFFFF' },
   });
 
   // Optionally overlay logo on QR
