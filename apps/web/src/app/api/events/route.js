@@ -54,6 +54,7 @@ export async function POST(request) {
       event_logo_url: rawLogoUrl,
       invitation_media_url: rawMediaUrl,
       qr_background_url: rawQrBgUrl,
+      qr_placement = 'card',
     } = body;
 
     if (!name || !date || !time || !venue) {
@@ -71,12 +72,13 @@ export async function POST(request) {
         user_id, name, date, time, category, capacity,
         venue, location, map_lat, map_lng,
         invitation_text, reminder,
-        event_logo_url, invitation_media_url, qr_background_url
+        event_logo_url, invitation_media_url, qr_background_url, qr_placement
       ) VALUES (
         ${user.id}, ${name}, ${date}, ${time}, ${category}, ${capacity},
         ${venue}, ${location ?? null}, ${map_lat ?? null}, ${map_lng ?? null},
         ${invitation_text ?? null}, ${reminder},
-        ${event_logo_url}, ${invitation_media_url}, ${qr_background_url}
+        ${event_logo_url}, ${invitation_media_url}, ${qr_background_url},
+        ${['card', 'overlay'].includes(qr_placement) ? qr_placement : 'card'}
       )
       RETURNING *
     `;

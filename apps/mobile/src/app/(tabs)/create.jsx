@@ -178,6 +178,7 @@ export default function CreateEvent() {
     eventLogo: null,
     invitationMedia: null,
     qrBackground: null,
+    qrPlacement: 'card',
   });
   const update = useCallback(
     (key, val) => setForm((f) => ({ ...f, [key]: val })),
@@ -212,7 +213,7 @@ export default function CreateEvent() {
     name: "", date: "", time: "", category: "مؤتمر",
     capacity: "", venue: "", location: "", mapCoords: null,
     invitationText: "", reminder: "24hours",
-    eventLogo: null, invitationMedia: null, qrBackground: null,
+    eventLogo: null, invitationMedia: null, qrBackground: null, qrPlacement: 'card',
   };
 
   // "Stay here" — just close the modal, everything stays
@@ -446,6 +447,7 @@ export default function CreateEvent() {
         event_logo_url: logoUrl ?? null,
         invitation_media_url: mediaUrl ?? null,
         qr_background_url: qrBgUrl ?? null,
+        qr_placement: form.qrPlacement,
       });
       setIsDirty(false);
       Alert.alert("تمت الإضافة! 🎉", `تم حفظ "${form.name}" بنجاح.`, [
@@ -466,6 +468,7 @@ export default function CreateEvent() {
         eventLogo: null,
         invitationMedia: null,
         qrBackground: null,
+        qrPlacement: 'card',
       });
     } catch (err) {
       console.error('[Save event]', err?.message, err);
@@ -987,7 +990,55 @@ export default function CreateEvent() {
             </Text>
           </Field>
 
-          {/* QR background */}
+          {/* QR placement toggle */}
+          <Field label="نمط رمز QR">
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+              <TouchableOpacity
+                onPress={() => update('qrPlacement', 'card')}
+                style={{
+                  flex: 1, paddingVertical: 10, borderRadius: 10,
+                  borderWidth: 1.5,
+                  borderColor: form.qrPlacement === 'card' ? T.primary : T.border,
+                  backgroundColor: form.qrPlacement === 'card' ? T.primarySoft : T.surface,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{
+                  fontFamily: form.qrPlacement === 'card' ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                  fontSize: 13,
+                  color: form.qrPlacement === 'card' ? T.primary : T.muted,
+                }}>
+                  خلفية مستقلة
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => update('qrPlacement', 'overlay')}
+                style={{
+                  flex: 1, paddingVertical: 10, borderRadius: 10,
+                  borderWidth: 1.5,
+                  borderColor: form.qrPlacement === 'overlay' ? T.primary : T.border,
+                  backgroundColor: form.qrPlacement === 'overlay' ? T.primarySoft : T.surface,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{
+                  fontFamily: form.qrPlacement === 'overlay' ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                  fontSize: 13,
+                  color: form.qrPlacement === 'overlay' ? T.primary : T.muted,
+                }}>
+                  على صورة الدعوة
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 10, color: T.muted, textAlign: 'right' }}>
+              {form.qrPlacement === 'overlay'
+                ? 'سيُضاف رمز QR أسفل صورة الدعوة تلقائياً'
+                : 'سيُرسل رمز QR على خلفية منفصلة'}
+            </Text>
+          </Field>
+
+          {/* QR background — only shown when placement is 'card' */}
+          {form.qrPlacement === 'card' && (
           <Field label="خلفية رمز QR">
             <MediaBtn formKey="qrBackground" acceptVideo={false} />
             <Text
@@ -1002,6 +1053,7 @@ export default function CreateEvent() {
               اختياري
             </Text>
           </Field>
+          )}
         </SectionCard>
 
         {/* ── Save Button ── */}
