@@ -94,7 +94,7 @@ export async function PUT(request, { params }) {
       name, date, time, category, capacity,
       venue, location, map_lat, map_lng,
       invitation_text, reminder,
-      event_logo_url, invitation_media_url, qr_background_url, qr_placement,
+      event_logo_url, invitation_media_url, qr_background_url,
     } = body;
 
     const [updated] = await sql`
@@ -112,8 +112,7 @@ export async function PUT(request, { params }) {
         reminder           = COALESCE(${reminder ?? null}, reminder),
         event_logo_url     = COALESCE(${event_logo_url ?? null}, event_logo_url),
         invitation_media_url = COALESCE(${invitation_media_url ?? null}, invitation_media_url),
-        qr_background_url  = COALESCE(${qr_background_url ?? null}, qr_background_url),
-        qr_placement       = COALESCE(${qr_placement ?? null}, qr_placement)
+        qr_background_url  = COALESCE(${qr_background_url ?? null}, qr_background_url)
       WHERE id = ${params.id}
       RETURNING *
     `;

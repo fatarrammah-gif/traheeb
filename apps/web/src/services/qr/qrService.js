@@ -11,7 +11,7 @@
  */
 import crypto from 'crypto';
 import sql from '../../app/api/utils/sql.js';
-import { generateQRCard, generateQROnInvitation } from './generator.js';
+import { generateQRCard } from './generator.js';
 import { sendQRTemplate } from '../whatsapp/metaSender.js';
 
 const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
@@ -26,21 +26,18 @@ export async function generateAndSendQRCards(guest) {
   try {
     // Load event
     const [event] = await sql`
-      SELECT id, name, date, time, event_logo_url, qr_background_url,
-             invitation_media_url, qr_placement
+      SELECT id, name, date, time, event_logo_url, qr_background_url
       FROM traheeb_events WHERE id = ${guest.event_id} LIMIT 1
     `;
     if (!event) { console.error(`[QR] event not found: ${guest.event_id}`); return; }
-    const isOverlay = event.qr_placement === 'overlay';
-    console.log(`[QR] event="${event.name}" placement=${event.qr_placement} logo=${!!event.event_logo_url} bg=${!!event.qr_background_url}`);
+    console.log(`[QR] event="${event.name}" logo=${!!event.event_logo_url} bg=${!!event.qr_background_url}`);
 
     // Fetch image buffers in parallel
-    const [logoBuffer, bgBuffer, invitationBuffer] = await Promise.all([
+    const [logoBuffer, bgBuffer] = await Promise.all([
       fetchBuffer(event.event_logo_url),
-      isOverlay ? Promise.resolve(null) : fetchBuffer(event.qr_background_url),
-      isOverlay ? fetchBuffer(event.invitation_media_url) : Promise.resolve(null),
+      fetchBuffer(event.qr_background_url),
     ]);
-    console.log(`[QR] images fetched logo=${logoBuffer?.length ?? 0}B bg=${bgBuffer?.length ?? 0}B invitation=${invitationBuffer?.length ?? 0}B`);
+    console.log(`[QR] images fetched logo=${logoBuffer?.length ?? 0}B bg=${bgBuffer?.length ?? 0}B`);
 
     const companions = Math.max(0, guest.companions ?? 0);
 
@@ -69,16 +66,14 @@ export async function generateAndSendQRCards(guest) {
         console.log(`[QR] token saved id=${qt.id} label=${label}`);
 
         // Generate card image
-        const cardBuffer = isOverlay && invitationBuffer
-          ? await generateQROnInvitation({ token, label, invitationBuffer, logoBuffer })
-          : await generateQRCard({
-              token, label,
-              eventName: event.name,
-              eventDate: event.date,
-              eventTime: event.time,
-              bgBuffer,
-              logoBuffer,
-            });
+        const cardBuffer = await generateQRCard({
+          token, label,
+          eventName: event.name,
+          eventDate: event.date,
+          eventTime: event.time,
+          bgBuffer,
+          logoBuffer,
+        });
 
         // Upload to ImgBB
         const imageUrl = await uploadToImgBB(cardBuffer);

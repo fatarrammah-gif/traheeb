@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS traheeb_events (
   event_logo_url       TEXT,
   invitation_media_url TEXT,
   qr_background_url    TEXT,
-  qr_placement         TEXT NOT NULL DEFAULT 'card', -- 'card' | 'overlay'
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
