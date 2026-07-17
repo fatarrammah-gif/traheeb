@@ -62,14 +62,35 @@ export async function POST(request) {
 }
 
 async function handleStatus(s) {
-  // s.id = message_id, s.status = 'sent'|'delivered'|'read'|'failed'
+  // s.id = wamid, s.status = 'sent'|'delivered'|'read'|'failed'
   if (!['delivered', 'read', 'failed'].includes(s.status)) return;
+
+  // Update reminder tracking (existing)
   await sql`
     UPDATE traheeb_reminders
     SET status = ${s.status}, updated_at = now()
     WHERE message_id = ${s.id}
-  `;
-  console.log(`[Webhook] reminder status ${s.id} → ${s.status}`);
+  `.catch(() => {});
+
+  // Update invitation delivery status on the guest record
+  if (s.status === 'delivered' || s.status === 'read') {
+    // 'invited' = message received by the guest → badge shows "مدعو"
+    const res = await sql`
+      UPDATE traheeb_guests
+      SET status = 'invited'
+      WHERE whatsapp_message_id = ${s.id}
+        AND status = 'sent'
+    `;
+    if (res.count > 0) console.log(`[Webhook] invitation ${s.id} delivered → guest status=invited`);
+  } else if (s.status === 'failed') {
+    const res = await sql`
+      UPDATE traheeb_guests
+      SET status = 'failed'
+      WHERE whatsapp_message_id = ${s.id}
+        AND status = 'sent'
+    `;
+    if (res.count > 0) console.log(`[Webhook] invitation ${s.id} failed → guest status=failed`);
+  }
 }
 
 async function handleMessage(msg) {
@@ -89,11 +110,11 @@ async function handleMessage(msg) {
     return;
   }
 
-  // Pick the most recently invited record for this phone number
+  // Pick the most recently sent/delivered record for this phone that hasn't responded yet
   const guests = await sql`
     SELECT g.id, g.name, g.phone, g.event_id, g.companions
     FROM traheeb_guests g
-    WHERE g.status = 'invited'
+    WHERE g.status IN ('sent', 'invited', 'failed')
       AND RIGHT(REGEXP_REPLACE(g.phone, '[^0-9]', '', 'g'), 9) = ${last9}
     ORDER BY g.invited_at DESC NULLS LAST, g.created_at DESC
     LIMIT 1

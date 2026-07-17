@@ -62,8 +62,9 @@ CREATE TABLE IF NOT EXISTS traheeb_guests (
   name              TEXT NOT NULL,
   phone             TEXT NOT NULL,
   companions        INT  NOT NULL DEFAULT 0,
-  status            TEXT NOT NULL DEFAULT 'invited', -- invited | confirmed | declined | attended
+  status            TEXT NOT NULL DEFAULT 'sent',    -- sent | invited | confirmed | declined | attended | failed
   invitation_token  TEXT UNIQUE,                     -- UUID embedded in confirm/decline URL
+  whatsapp_message_id TEXT,                          -- Meta wamid, used to match delivery status webhooks
   ticket_id         TEXT UNIQUE,                     -- e.g. TKT-XXXXXX
   invited_at        TIMESTAMPTZ,
   responded_at      TIMESTAMPTZ,

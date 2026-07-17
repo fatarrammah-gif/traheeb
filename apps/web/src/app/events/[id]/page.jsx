@@ -18,11 +18,12 @@ const T = {
 };
 
 const STATUS_CONFIG = {
-  confirmed: { label: 'مؤكد', bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
-  invited:   { label: 'مدعو', bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-  pending:   { label: 'معلق', bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
-  declined:  { label: 'معتذر', bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
-  attended:  { label: 'حضر',  bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
+  sent:      { label: 'لم يستلم', bg: '#F9FAFB', color: '#6B7280', border: '#E5E7EB' },
+  failed:    { label: 'لم يستلم', bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
+  invited:   { label: 'مدعو',    bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
+  confirmed: { label: 'مؤكد',   bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
+  declined:  { label: 'معتذر',  bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
+  attended:  { label: 'حضر',    bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
 };
 
 function StatusBadge({ status }) {
@@ -705,10 +706,11 @@ export default function EventDetailPage() {
                 {/* Mobile filter tags row — always visible on mobile when guests exist */}
                 {guests.length > 0 && (() => {
                   const FILTERS = [
-                    { status: 'invited',   label: 'مدعو',   bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-                    { status: 'confirmed', label: 'مؤكد',   bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
-                    { status: 'attended',  label: 'حاضر',   bg: '#F0FDF4', color: '#16A34A', border: '#86EFAC' },
-                    { status: 'declined',  label: 'معتذر',  bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
+                    { status: 'sent',      label: 'لم يستلم', bg: '#F9FAFB', color: '#6B7280', border: '#E5E7EB' },
+                    { status: 'invited',   label: 'مدعو',     bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
+                    { status: 'confirmed', label: 'مؤكد',    bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
+                    { status: 'attended',  label: 'حاضر',    bg: '#F0FDF4', color: '#16A34A', border: '#86EFAC' },
+                    { status: 'declined',  label: 'معتذر',   bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
                   ];
                   return (
                     <div className="guest-filter-bar" style={{ display: 'none', alignItems: 'center', gap: 6, padding: '10px 16px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>

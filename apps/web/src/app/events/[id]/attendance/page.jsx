@@ -131,7 +131,7 @@ export default function AttendancePage() {
 
   if (!token) return null;
 
-  const rows         = buildRows(guests);
+  const rows         = buildRows(guests.filter(g => g.status !== 'declined'));
   const attendedRows = rows.filter(r => r.attended);
   const absentRows   = rows.filter(r => !r.attended);
 

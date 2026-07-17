@@ -103,7 +103,7 @@ export async function POST(request, { params }) {
 
       const [guest] = await sql`
         INSERT INTO traheeb_guests (event_id, name, phone, companions, status, invitation_token, invited_at)
-        VALUES (${event.id}, ${name}, ${phone}, ${companions}, 'invited', ${invitationToken}, ${invitedAt})
+        VALUES (${event.id}, ${name}, ${phone}, ${companions}, 'sent', ${invitationToken}, ${invitedAt})
         ON CONFLICT DO NOTHING
         RETURNING *
       `;
@@ -178,7 +178,7 @@ async function sendInvitations(event, guests) {
 
     console.log(`[invite] sending Meta template to phone="${guest.phone}" overlay=${isOverlay}`);
     try {
-      await sendInvitationTemplate({
+      const result = await sendInvitationTemplate({
         phone: guest.phone,
         guestName: guest.name || '-',
         invitationText: (event.invitation_text || '-').slice(0, 400),
@@ -190,9 +190,21 @@ async function sendInvitations(event, guests) {
         imageUrl,
         invitationToken: guest.invitation_token,
       });
-      console.log(`[invite] template sent to ${guest.phone}`);
+      // Store Meta message ID so delivery-status webhooks can find this guest
+      const wamid = result?.messages?.[0]?.id ?? null;
+      if (wamid) {
+        await sql`
+          UPDATE traheeb_guests SET whatsapp_message_id = ${wamid}
+          WHERE id = ${guest.id}
+        `.catch(e => console.error('[invite] wamid save error:', e.message));
+      }
+      console.log(`[invite] template sent to ${guest.phone} wamid=${wamid}`);
     } catch (err) {
       console.error(`[invite] FAILED for ${guest.phone}:`, err.message);
+      await sql`
+        UPDATE traheeb_guests SET status = 'failed'
+        WHERE id = ${guest.id}
+      `.catch(() => {});
     }
 
     // Small delay to stay within Meta rate limits
