@@ -283,12 +283,13 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
   const qrSize = Math.max(120, Math.min(300, Math.round(Math.min(imgW, imgH) * 0.22)));
   const margin = Math.round(imgW * 0.04);
 
+  // Transparent background for QR modules light cells
   const qrPng = await QRCode.toBuffer(token, {
     type: 'png',
     width: qrSize,
     margin: 2,
     errorCorrectionLevel: 'H',
-    color: { dark: qrDarkColor, light: '#FFFFFF' },
+    color: { dark: qrDarkColor, light: '#00000000' },
   });
 
   const qrCanvas = createCanvas(qrSize, qrSize);
@@ -307,19 +308,15 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
     qrCtx.drawImage(await loadImage(logoBuf), offset, offset);
   }
 
-  const padPx = Math.round(qrSize * 0.08);
-  const qrWithPad = await sharp(qrCanvas.toBuffer('image/png'))
-    .extend({ top: padPx, bottom: padPx, left: padPx, right: padPx,
-              background: { r: 255, g: 255, b: 255, alpha: 1 } })
-    .png().toBuffer();
-  const paddedSize = qrSize + padPx * 2;
+  // No padding — transparent background needs no white border
+  const qrFinal = await sharp(qrCanvas.toBuffer('image/png')).png().toBuffer();
 
-  const left = Math.max(0, Math.round((imgW - paddedSize) / 2));
-  const top  = Math.max(0, imgH - paddedSize - margin);
+  const left = Math.max(0, Math.round((imgW - qrSize) / 2));
+  const top  = Math.max(0, imgH - qrSize - margin - 100);
 
   const result = await sharp(invitationBuffer)
     .png()
-    .composite([{ input: qrWithPad, left, top }])
+    .composite([{ input: qrFinal, left, top }])
     .toBuffer();
 
   console.log(`[generator] overlay built label=${label} size=${result.length}B`);
