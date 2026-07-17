@@ -106,6 +106,7 @@ export default function EventDetailPage() {
   const [resendingGuests, setResendingGuests] = useState(new Set());
   const [specificResend, setSpecificResend] = useState({});
   const [sendingExtraQR, setSendingExtraQR] = useState(new Set());
+  const [adjustingGuests, setAdjustingGuests] = useState(new Set());
   const [contactsSupported, setContactsSupported] = useState(false);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -306,6 +307,32 @@ export default function EventDetailPage() {
     } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
     finally {
       setSendingExtraQR((prev) => { const next = new Set(prev); next.delete(guestId); return next; });
+    }
+  }
+
+  async function handleAdjustCompanions(guestId, delta) {
+    const guest = guests.find(g => g.id === guestId);
+    if (!guest) return;
+    const newVal = Math.max(0, (guest.companions ?? 0) + delta);
+    // Optimistic update
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, companions: newVal } : g));
+    setAdjustingGuests(prev => new Set(prev).add(guestId));
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${guestId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ companions: newVal }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // Revert on error
+        setGuests(prev => prev.map(g => g.id === guestId ? { ...g, companions: guest.companions } : g));
+        setToast({ message: data.error || 'حدث خطأ', type: 'error' });
+      }
+    } catch {
+      setGuests(prev => prev.map(g => g.id === guestId ? { ...g, companions: guest.companions } : g));
+      setToast({ message: 'حدث خطأ في الاتصال', type: 'error' });
+    } finally {
+      setAdjustingGuests(prev => { const next = new Set(prev); next.delete(guestId); return next; });
     }
   }
 
@@ -710,67 +737,59 @@ export default function EventDetailPage() {
                 ) : (
                   <>
                     {/* Table header */}
-                    <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
+                    <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 130px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
                       <span>الاسم</span>
                       <span className="g-phone">رقم الجوال</span>
-                      <span className="g-comp">مرافقون</span>
-                      <span className="g-qr">رموز QR</span>
+                      <span className="g-comp">المرافقون</span>
                       <span className="g-status-desktop">الحالة</span>
-                      <span className="g-extra">إضافي</span>
+                      <span className="g-adjust">تعديل المرافقين</span>
                     </div>
                     {filteredGuests.map((g, i) => {
-                      const companionQr = (g.qr_tokens ?? []).filter((q) => q.label?.startsWith('companion-')).length;
-                      const expectedQr = g.companions ?? 0;
-                      const missingQr = expectedQr - companionQr;
-                      const isResending = resendingGuests.has(g.id);
-                      const isSendingExtra = sendingExtraQR.has(g.id);
+                      const isAdjusting = adjustingGuests.has(g.id);
+                      const companions = g.companions ?? 0;
                       return (
-                        <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 70px 90px 100px 60px', padding: '12px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center', background: missingQr > 0 && g.status === 'confirmed' ? '#FFFBEB' : 'transparent' }}>
+                        <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 130px', padding: '13px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center' }}>
+                          {/* Name */}
                           <div className="g-name-cell">
                             <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
                             {/* Mobile-only tags */}
                             <div className="g-mobile-tags" style={{ display: 'none', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <StatusBadge status={g.status} />
-                              {expectedQr > 0 && (
+                              {companions > 0 && (
                                 <span style={{ fontSize: 11, fontWeight: 600, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 6, padding: '2px 7px' }}>
-                                  {expectedQr} مرافق
+                                  {companions} مرافق
                                 </span>
                               )}
                             </div>
                           </div>
+
+                          {/* Phone */}
                           <span className="g-phone" style={{ color: T.muted, direction: 'ltr', textAlign: 'right', fontSize: 13 }}>{g.phone}</span>
-                          <span className="g-comp" style={{ color: T.muted }}>{expectedQr}</span>
-                          <div className="g-qr" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            {expectedQr === 0 || (g.status !== 'confirmed' && g.status !== 'attended') ? (
-                              <span style={{ color: T.border, fontSize: 13 }}>—</span>
-                            ) : missingQr > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                <span style={{ color: '#D97706', fontSize: 13, fontWeight: 600 }}>{companionQr}/{expectedQr}</span>
-                                <button onClick={() => handleResendQR(g.id, undefined)} disabled={isResending}
-                                  style={{ background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: isResending ? 'not-allowed' : 'pointer', opacity: isResending ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-                                  {isResending ? 'جارٍ...' : `إرسال ${missingQr} مفقود`}
-                                </button>
-                              </div>
-                            ) : (
-                              <span style={{ color: '#059669', fontSize: 13, fontWeight: 600 }}>✓ {companionQr}/{expectedQr}</span>
-                            )}
-                            {expectedQr > 0 && (g.status === 'confirmed' || g.status === 'attended') && (
-                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 2 }}>
-                                <input type="number" min={1} max={expectedQr} placeholder="#" value={specificResend[g.id] ?? ''} onChange={e => setSpecificResend(prev => ({ ...prev, [g.id]: e.target.value }))}
-                                  style={{ width: 40, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, padding: '3px 6px', color: T.text, fontSize: 12, outline: 'none', textAlign: 'center' }} />
-                                <button onClick={() => { const num = parseInt(specificResend[g.id], 10); if (!num) return; handleResendQR(g.id, num); }} disabled={isResending || !specificResend[g.id]}
-                                  style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: isResending || !specificResend[g.id] ? 'not-allowed' : 'pointer', opacity: isResending || !specificResend[g.id] ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                                  {isResending ? 'جارٍ...' : 'إرسال'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
+
+                          {/* Companions count */}
+                          <span className="g-comp" style={{ fontWeight: 600, color: T.text }}>{companions}</span>
+
+                          {/* Status */}
                           <span className="g-status-desktop"><StatusBadge status={g.status} /></span>
-                          <button className="g-extra" onClick={() => handleExtraQR(g.id)} disabled={g.extra_qr_sent || isSendingExtra}
-                            title={g.extra_qr_sent ? 'تم إرسال رمز QR الإضافي مسبقاً' : 'إرسال رمز QR إضافي'}
-                            style={{ background: g.extra_qr_sent ? '#F9FAFB' : T.primarySoft, color: g.extra_qr_sent ? T.muted : T.primary, border: `1px solid ${g.extra_qr_sent ? T.border : T.border}`, borderRadius: 8, padding: '5px 10px', fontSize: 16, cursor: g.extra_qr_sent || isSendingExtra ? 'not-allowed' : 'pointer', opacity: isSendingExtra ? 0.6 : 1, lineHeight: 1 }}>
-                            {isSendingExtra ? '...' : g.extra_qr_sent ? '✓' : '+'}
-                          </button>
+
+                          {/* +/- adjuster */}
+                          <div className="g-adjust" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <button
+                              onClick={() => handleAdjustCompanions(g.id, -1)}
+                              disabled={isAdjusting || companions === 0}
+                              style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${T.border}`, background: companions === 0 ? '#F9FAFB' : T.surface, color: companions === 0 ? T.border : T.primary, fontSize: 18, fontWeight: 700, cursor: companions === 0 || isAdjusting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, flexShrink: 0, opacity: isAdjusting ? 0.5 : 1 }}>
+                              −
+                            </button>
+                            <span style={{ minWidth: 20, textAlign: 'center', fontSize: 14, fontWeight: 700, color: T.text }}>
+                              {isAdjusting ? '…' : companions}
+                            </span>
+                            <button
+                              onClick={() => handleAdjustCompanions(g.id, +1)}
+                              disabled={isAdjusting}
+                              style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.primarySoft, color: T.primary, fontSize: 18, fontWeight: 700, cursor: isAdjusting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, flexShrink: 0, opacity: isAdjusting ? 0.5 : 1 }}>
+                              +
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -799,7 +818,8 @@ export default function EventDetailPage() {
         }
         @media (max-width: 768px) {
           .guest-header, .guest-row { grid-template-columns: 1fr !important; }
-          .g-phone, .g-comp, .g-qr, .g-extra, .g-status-desktop { display: none !important; }
+          .g-phone, .g-comp, .g-status-desktop { display: none !important; }
+          .g-adjust { justify-content: flex-end; }
           .g-name-cell { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
           .g-mobile-tags { display: flex !important; flex-shrink: 0; }
           .guest-filter-bar { display: flex !important; }

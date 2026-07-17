@@ -40,6 +40,18 @@ export async function PATCH(request, { params }) {
       RETURNING *
     `;
 
+    // When companions changes, sync max_scans on the main QR token so the
+    // scanner allows the correct number of entries (companions + 1).
+    if (companions != null) {
+      await sql`
+        UPDATE traheeb_qr_tokens
+        SET max_scans = ${companions + 1}
+        WHERE guest_id = ${params.guestId}
+          AND label = 'main'
+          AND used = false
+      `;
+    }
+
     return Response.json({ guest: updated });
   } catch (err) {
     if (err.status) return Response.json({ error: err.message }, { status: err.status });
