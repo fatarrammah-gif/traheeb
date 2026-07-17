@@ -5,6 +5,7 @@
 import { authenticate, authenticateStaff } from '../../../utils/auth.js';
 import sql from '../../../utils/sql.js';
 import { sendInvitationTemplate } from '../../../../../services/whatsapp/metaSender.js';
+import { generateOverlayQRForGuest } from '../../../../../services/qr/qrService.js';
 import crypto from 'crypto';
 
 const BASE_URL = process.env.BASE_URL || 'https://traheeb-production.up.railway.app';
@@ -161,11 +162,21 @@ function buildLocationLink(event) {
 
 async function sendInvitations(event, guests) {
   const locationLink = buildLocationLink(event);
+  const isOverlay = event.qr_placement === 'overlay' && !!event.invitation_media_url;
 
   for (const guest of guests) {
     const companionsLabel = String(guest.companions || 0);
 
-    console.log(`[invite] sending Meta template to phone="${guest.phone}"`);
+    // Overlay mode: generate QR now and overlay it on the invitation image.
+    // The resulting image is used as the template header instead of the plain invitation.
+    let imageUrl = event.invitation_media_url || null;
+    if (isOverlay) {
+      const overlayUrl = await generateOverlayQRForGuest(guest, event);
+      if (overlayUrl) imageUrl = overlayUrl;
+      // If generation failed, fall back to plain invitation image
+    }
+
+    console.log(`[invite] sending Meta template to phone="${guest.phone}" overlay=${isOverlay}`);
     try {
       await sendInvitationTemplate({
         phone: guest.phone,
@@ -175,8 +186,8 @@ async function sendInvitations(event, guests) {
         time: formatTime12Arabic(event.time),
         venueName: event.venue || '-',
         companionsLabel: companionsLabel || '0',
-        locationLink,                              // short redirect → template {{link}}
-        imageUrl: event.invitation_media_url || null,
+        locationLink,
+        imageUrl,
         invitationToken: guest.invitation_token,
       });
       console.log(`[invite] template sent to ${guest.phone}`);
