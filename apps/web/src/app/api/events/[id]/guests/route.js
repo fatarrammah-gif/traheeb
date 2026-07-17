@@ -157,7 +157,7 @@ async function sendInvitations(event, guests) {
       await sendInvitationTemplate({
         phone: guest.phone,
         guestName: guest.name || '-',
-        invitationText: (event.invitation_text || '-').slice(0, 400),
+        invitationText: event.invitation_text || '-',
         date: event.date || '-',
         time: formatTime12Arabic(event.time),
         venueName: event.venue || '-',
