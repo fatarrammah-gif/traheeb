@@ -128,9 +128,7 @@ export default function ScannerScreen() {
 
   const overlayMessage =
     result?.status === 'valid'
-      ? result.guest?.maxScans > 1
-        ? `✅ تم تسجيل الدخول\n${result.guest?.name} — دخول ${result.guest.scanCount} من ${result.guest.maxScans}`
-        : `✅ تم تسجيل الدخول\n${result.guest?.name}${result.guest?.companions > 0 ? ` (${result.guest.companions} مرافق)` : ''}`
+      ? `✅ تم تسجيل الدخول\n${result.guest?.name}${result.guest?.companions > 0 ? ` (${result.guest.companions} مرافق)` : ''}`
       : result?.status === 'already_used'
         ? `⚠️ تم استخدام هذا الرمز مسبقاً\n${result.guest?.name ?? ''}`
         : result?.status === 'invalid'
@@ -182,12 +180,7 @@ export default function ScannerScreen() {
             <Text style={styles.confirmTitle}>تأكيد الدخول</Text>
             <Text style={styles.confirmName}>{preview.guest?.name}</Text>
 
-            {preview.guest?.maxScans > 1 ? (
-              <Text style={styles.confirmCompanions}>
-                دخول {preview.guest.scanCount + 1} من {preview.guest.maxScans}
-                {preview.guest.companions > 0 ? ` (${preview.guest.companions} مرافق)` : ''}
-              </Text>
-            ) : preview.guest?.companions > 0 && (
+            {preview.guest?.companions > 0 && (
               <Text style={styles.confirmCompanions}>
                 + {preview.guest.companions} مرافق
               </Text>

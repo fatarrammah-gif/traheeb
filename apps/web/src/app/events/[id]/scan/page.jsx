@@ -175,9 +175,7 @@ export default function ScanPage() {
     result?.status === 'already_used' ? 'تم الاستخدام مسبقاً' : 'دخول مرفوض';
   const resultMsg =
     result?.status === 'valid'
-      ? result.guest?.maxScans > 1
-        ? `${result.guest?.name ?? ''} — دخول ${result.guest.scanCount} من ${result.guest.maxScans}`
-        : `مرحباً ${result.guest?.name ?? ''}${result.guest?.companions > 0 ? ` (${result.guest.companions} مرافق)` : ''}`
+      ? `مرحباً ${result.guest?.name ?? ''}${result.guest?.companions > 0 ? ` (${result.guest.companions} مرافق)` : ''}`
       : result?.status === 'already_used'
         ? result.guest?.name ?? ''
         : 'رمز QR غير صالح';
@@ -232,12 +230,7 @@ export default function ScanPage() {
               <p style={{ fontSize: 14, color: '#7A5568', margin: '0 0 6px' }}>تأكيد الدخول</p>
               <p style={{ fontSize: 22, fontWeight: 800, color: '#C8005A', margin: '0 0 6px' }}>{preview.guest?.name}</p>
 
-              {preview.guest?.maxScans > 1 ? (
-                <p style={{ fontSize: 14, color: '#7A5568', margin: '0 0 4px' }}>
-                  دخول {preview.guest.scanCount + 1} من {preview.guest.maxScans}
-                  {preview.guest.companions > 0 ? ` (${preview.guest.companions} مرافق)` : ''}
-                </p>
-              ) : preview.guest?.companions > 0 && (
+              {preview.guest?.companions > 0 && (
                 <p style={{ fontSize: 14, color: '#7A5568', margin: '0 0 4px' }}>+ {preview.guest.companions} مرافق</p>
               )}
 

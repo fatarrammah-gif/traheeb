@@ -71,35 +71,25 @@ export async function POST(request) {
         };
       }
 
-      const newScanCount = (qt.scan_count ?? 0) + 1;
-      const maxScans     = qt.max_scans ?? 1;
-      const exhausted    = newScanCount >= maxScans;
-
-      // Increment scan count; mark fully used when all scans consumed
+      // Mark used
       await tx`
         UPDATE traheeb_qr_tokens
-        SET scan_count = ${newScanCount},
-            used    = ${exhausted},
-            used_at = CASE WHEN ${exhausted} THEN now() ELSE used_at END
+        SET used = true, used_at = now()
         WHERE id = ${qt.id}
       `;
 
-      // Update guest status to attended on first scan
-      if (qt.label === 'main' && newScanCount === 1) {
+      // Update guest status to attended (only for the main ticket)
+      if (qt.label === 'main') {
         await tx`
-          UPDATE traheeb_guests SET status = 'attended' WHERE id = ${qt.guest_id}
+          UPDATE traheeb_guests
+          SET status = 'attended'
+          WHERE id = ${qt.guest_id}
         `;
       }
 
       return {
         status: 'valid',
-        guest: {
-          name: qt.guest_name,
-          label: qt.label,
-          companions: qt.companions,
-          scanCount: newScanCount,
-          maxScans,
-        },
+        guest: { name: qt.guest_name, label: qt.label, companions: qt.companions },
       };
     });
 
