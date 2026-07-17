@@ -40,15 +40,17 @@ export async function PATCH(request, { params }) {
       RETURNING *
     `;
 
-    // When companions changes, sync max_scans on the main QR token so the
-    // scanner allows the correct number of entries (companions + 1).
+    // When companions changes, sync max_scans on the main QR token and
+    // recalculate `used` — if companions increased, the token may no longer
+    // be exhausted even if it was previously marked used.
     if (companions != null) {
+      const newMaxScans = companions + 1;
       await sql`
         UPDATE traheeb_qr_tokens
-        SET max_scans = ${companions + 1}
+        SET max_scans = ${newMaxScans},
+            used      = (scan_count >= ${newMaxScans})
         WHERE guest_id = ${params.guestId}
           AND label = 'main'
-          AND used = false
       `;
     }
 
