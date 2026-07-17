@@ -189,7 +189,7 @@ async function sendInvitations(event, guests) {
         locationLink,
         imageUrl,
         invitationToken: guest.invitation_token,
-        templateName: isOverlay ? 'attendance_conf_10' : undefined,
+        templateName: isOverlay ? 'attendence_conf_10' : undefined,
       });
       // Store Meta message ID so delivery-status webhooks can find this guest
       const wamid = result?.messages?.[0]?.id ?? null;
