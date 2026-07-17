@@ -139,11 +139,24 @@ function formatTime12Arabic(timeStr) {
 }
 
 function buildLocationLink(event) {
+  // Shortest — coordinate-based URL
   if (event.map_lat && event.map_lng) {
     return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
   }
-  const query = [event.venue, event.location].filter(Boolean).join(' ');
-  return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+
+  const loc = String(event.location ?? '').trim();
+
+  // If location is a Google Maps URL, extract just the q= param to keep it short
+  if (loc && loc.includes('q=')) {
+    try {
+      const fullUrl = loc.startsWith('http') ? loc : `https://${loc}`;
+      const q = new URL(fullUrl).searchParams.get('q');
+      if (q) return `https://maps.google.com/?q=${encodeURIComponent(q)}`;
+    } catch {}
+  }
+
+  // Fall back to venue name only (always short)
+  return `https://maps.google.com/?q=${encodeURIComponent(event.venue || '')}`;
 }
 
 async function sendInvitations(event, guests) {
