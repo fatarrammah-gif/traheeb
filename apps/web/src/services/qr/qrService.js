@@ -36,11 +36,6 @@ export async function generateOverlayQRForGuest(guest, event) {
       fetchBuffer(event.invitation_media_url),
     ]);
 
-    if (!invitationBuffer) {
-      console.warn(`[QR] overlay: no invitation image — returning null`);
-      return null;
-    }
-
     const token    = crypto.randomBytes(16).toString('hex');
     const maxScans = Math.max(1, (guest.companions ?? 0) + 1);
 
@@ -50,9 +45,24 @@ export async function generateOverlayQRForGuest(guest, event) {
       RETURNING id
     `;
 
-    const cardBuffer = await generateQROnInvitation({
-      token, label: 'main', invitationBuffer, logoBuffer,
-    });
+    let cardBuffer;
+    if (invitationBuffer) {
+      // Overlay QR on invitation image
+      cardBuffer = await generateQROnInvitation({
+        token, label: 'main', invitationBuffer, logoBuffer,
+      });
+    } else {
+      // No invitation image — generate a plain QR card so the template header is satisfied
+      console.warn(`[QR] overlay: no invitation image — generating plain QR card`);
+      cardBuffer = await generateQRCard({
+        token, label: 'main',
+        eventName: event.name || '',
+        eventDate: event.date || '',
+        eventTime: event.time || '',
+        bgBuffer: null,
+        logoBuffer,
+      });
+    }
 
     const imageUrl = await uploadToImgBB(cardBuffer);
     await sql`UPDATE traheeb_qr_tokens SET qr_url = ${imageUrl} WHERE id = ${qt.id}`;
