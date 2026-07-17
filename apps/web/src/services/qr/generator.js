@@ -312,7 +312,7 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
   const qrFinal = await sharp(qrCanvas.toBuffer('image/png')).png().toBuffer();
 
   const left = Math.max(0, Math.round((imgW - qrSize) / 2));
-  const top  = Math.max(0, imgH - qrSize - margin - 100);
+  const top  = Math.max(0, imgH - qrSize - margin - 300);
 
   const result = await sharp(invitationBuffer)
     .png()
