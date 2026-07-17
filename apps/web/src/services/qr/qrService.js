@@ -11,7 +11,7 @@
  */
 import crypto from 'crypto';
 import sql from '../../app/api/utils/sql.js';
-import { generateQRCard } from './generator.js';
+import { generateQRCard, generateQROnInvitation } from './generator.js';
 import { sendQRTemplate } from '../whatsapp/metaSender.js';
 
 const IMGBB_API_KEY = process.env.IMGBB_API_KEY;
@@ -26,76 +26,94 @@ export async function generateAndSendQRCards(guest) {
   try {
     // Load event
     const [event] = await sql`
-      SELECT id, name, date, time, event_logo_url, qr_background_url
+      SELECT id, name, date, time, event_logo_url, qr_background_url,
+             invitation_media_url, qr_placement
       FROM traheeb_events WHERE id = ${guest.event_id} LIMIT 1
     `;
     if (!event) { console.error(`[QR] event not found: ${guest.event_id}`); return; }
-    console.log(`[QR] event="${event.name}" logo=${!!event.event_logo_url} bg=${!!event.qr_background_url}`);
+    console.log(`[QR] event="${event.name}" logo=${!!event.event_logo_url} bg=${!!event.qr_background_url} placement=${event.qr_placement}`);
+
+    const isOverlay = event.qr_placement === 'overlay';
 
     // Fetch image buffers in parallel
-    const [logoBuffer, bgBuffer] = await Promise.all([
+    const [logoBuffer, bgBuffer, invitationBuffer] = await Promise.all([
       fetchBuffer(event.event_logo_url),
-      fetchBuffer(event.qr_background_url),
+      isOverlay ? Promise.resolve(null) : fetchBuffer(event.qr_background_url),
+      isOverlay ? fetchBuffer(event.invitation_media_url) : Promise.resolve(null),
     ]);
-    console.log(`[QR] images fetched logo=${logoBuffer?.length ?? 0}B bg=${bgBuffer?.length ?? 0}B`);
+    console.log(`[QR] images fetched logo=${logoBuffer?.length ?? 0}B bg=${bgBuffer?.length ?? 0}B invitation=${invitationBuffer?.length ?? 0}B`);
 
     const companions = Math.max(0, guest.companions ?? 0);
 
-    // Create main token in DB (for door-scan tracking) but do NOT send an image
-    const mainToken = crypto.randomBytes(16).toString('hex');
-    await sql`
-      INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
-      VALUES (${guest.id}, ${guest.event_id}, ${mainToken}, 'main')
-    `;
-    console.log(`[QR] main token saved (no image sent)`);
+    if (isOverlay && invitationBuffer) {
+      // ── Overlay mode: ONE token per guest, scannable companions+1 times ──────
+      const maxScans = companions + 1;
+      const token = crypto.randomBytes(16).toString('hex');
 
-    // Send QR images only for companions
-    const labels = Array.from({ length: companions }, (_, i) => `companion-${i + 1}`);
-    console.log(`[QR] will send ${labels.length} companion card(s): ${labels.join(', ') || '(none)'}`);
+      const [qt] = await sql`
+        INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label, max_scans)
+        VALUES (${guest.id}, ${guest.event_id}, ${token}, 'main', ${maxScans})
+        RETURNING id
+      `;
+      console.log(`[QR] overlay token saved id=${qt.id} max_scans=${maxScans}`);
 
-    for (const label of labels) {
-      try {
-        const token = crypto.randomBytes(16).toString('hex'); // 32-char hex
+      const cardBuffer = await generateQROnInvitation({ token, label: 'main', invitationBuffer, logoBuffer });
+      const imageUrl = await uploadToImgBB(cardBuffer);
+      console.log(`[QR] overlay uploaded url=${imageUrl}`);
 
-        // Save token to DB
-        const [qt] = await sql`
-          INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
-          VALUES (${guest.id}, ${guest.event_id}, ${token}, ${label})
-          RETURNING id
-        `;
-        console.log(`[QR] token saved id=${qt.id} label=${label}`);
+      await sql`UPDATE traheeb_qr_tokens SET qr_url = ${imageUrl} WHERE id = ${qt.id}`;
+      await waitForUrl(imageUrl);
+      await sendQRTemplate({ phone: guest.phone, imageUrl });
+      console.log(`[QR] overlay sent to ${guest.phone} max_scans=${maxScans}`);
 
-        // Generate card image
-        const cardBuffer = await generateQRCard({
-          token, label,
-          eventName: event.name,
-          eventDate: event.date,
-          eventTime: event.time,
-          bgBuffer,
-          logoBuffer,
-        });
+    } else {
+      // ── Card mode: main token (no image) + one card per companion ────────────
+      const mainToken = crypto.randomBytes(16).toString('hex');
+      await sql`
+        INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
+        VALUES (${guest.id}, ${guest.event_id}, ${mainToken}, 'main')
+      `;
+      console.log(`[QR] main token saved (no image sent)`);
 
-        // Upload to ImgBB
-        const imageUrl = await uploadToImgBB(cardBuffer);
-        console.log(`[QR] uploaded label=${label} url=${imageUrl}`);
+      const labels = Array.from({ length: companions }, (_, i) => `companion-${i + 1}`);
+      console.log(`[QR] will send ${labels.length} companion card(s): ${labels.join(', ') || '(none)'}`);
 
-        // Save URL to DB
-        await sql`UPDATE traheeb_qr_tokens SET qr_url = ${imageUrl} WHERE id = ${qt.id}`;
+      for (const label of labels) {
+        try {
+          const token = crypto.randomBytes(16).toString('hex');
 
-        // Wait for ImgBB CDN to propagate before Meta fetches it
-        await waitForUrl(imageUrl);
+          const [qt] = await sql`
+            INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
+            VALUES (${guest.id}, ${guest.event_id}, ${token}, ${label})
+            RETURNING id
+          `;
+          console.log(`[QR] token saved id=${qt.id} label=${label}`);
 
-        // Send image via Meta
-        await sendQRTemplate({ phone: guest.phone, imageUrl });
-        console.log(`[QR] sent label=${label} to ${guest.phone}`);
+          const cardBuffer = await generateQRCard({
+            token, label,
+            eventName: event.name,
+            eventDate: event.date,
+            eventTime: event.time,
+            bgBuffer,
+            logoBuffer,
+          });
 
-        await sleep(1500); // stay within Meta rate limits
-      } catch (err) {
-        console.error(`[QR] FAILED label=${label}:`, err.message);
+          const imageUrl = await uploadToImgBB(cardBuffer);
+          console.log(`[QR] uploaded label=${label} url=${imageUrl}`);
+
+          await sql`UPDATE traheeb_qr_tokens SET qr_url = ${imageUrl} WHERE id = ${qt.id}`;
+          await waitForUrl(imageUrl);
+          await sendQRTemplate({ phone: guest.phone, imageUrl });
+          console.log(`[QR] sent label=${label} to ${guest.phone}`);
+
+          await sleep(1500);
+        } catch (err) {
+          console.error(`[QR] FAILED label=${label}:`, err.message);
+        }
       }
     }
 
-    console.log(`[QR] ── done guest=${guest.id} cards=${labels.length}`);
+    console.log(`[QR] ── done guest=${guest.id}`);
   } catch (err) {
     console.error('[QR] fatal error:', err.message);
   }

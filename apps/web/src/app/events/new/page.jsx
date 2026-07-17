@@ -294,6 +294,7 @@ export default function NewEventPage() {
   const [form, setForm] = useState({ name: '', date: '', time: '', venue: '', capacity: '', invitation_text: '' });
   const [uploadedUrls, setUploadedUrls] = useState({ event_logo_url: '', invitation_media_url: '', qr_background_url: '' });
   const [uploading, setUploading] = useState({});
+  const [qrPlacement, setQrPlacement] = useState('card');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -322,6 +323,7 @@ export default function NewEventPage() {
       event_logo_url: uploadedUrls.event_logo_url || undefined,
       invitation_media_url: uploadedUrls.invitation_media_url || undefined,
       qr_background_url: uploadedUrls.qr_background_url || undefined,
+      qr_placement: qrPlacement,
     };
     try {
       const res = await authFetch('/api/events', { method: 'POST', body: JSON.stringify(payload) });
@@ -433,7 +435,37 @@ export default function NewEventPage() {
                 </h2>
                 <FileUploadField label="شعار الفعالية" required fieldKey="event_logo_url" uploadedUrls={uploadedUrls} setUploadedUrls={setUploadedUrls} uploading={uploading} setUploading={setUploading} />
                 <FileUploadField label="صورة الدعوة" required fieldKey="invitation_media_url" uploadedUrls={uploadedUrls} setUploadedUrls={setUploadedUrls} uploading={uploading} setUploading={setUploading} />
-                <FileUploadField label="خلفية رمز QR (اختياري)" fieldKey="qr_background_url" uploadedUrls={uploadedUrls} setUploadedUrls={setUploadedUrls} uploading={uploading} setUploading={setUploading} />
+
+                {/* QR placement toggle */}
+                <Field label="نمط رمز QR">
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+                    {[
+                      { value: 'card',    label: 'خلفية مستقلة' },
+                      { value: 'overlay', label: 'على صورة الدعوة' },
+                    ].map(opt => (
+                      <button key={opt.value} type="button" onClick={() => setQrPlacement(opt.value)}
+                        style={{
+                          flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 14,
+                          fontFamily: "'Cairo', sans-serif", fontWeight: qrPlacement === opt.value ? 700 : 400,
+                          cursor: 'pointer', transition: 'all 0.2s',
+                          border: `1.5px solid ${qrPlacement === opt.value ? T.primary : T.border}`,
+                          background: qrPlacement === opt.value ? T.primarySoft : T.surface,
+                          color: qrPlacement === opt.value ? T.primary : T.muted,
+                        }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: 0, fontSize: 12, color: T.muted, textAlign: 'right' }}>
+                    {qrPlacement === 'overlay'
+                      ? 'سيُضاف رمز QR أسفل صورة الدعوة تلقائياً'
+                      : 'سيُرسل رمز QR على خلفية منفصلة'}
+                  </p>
+                </Field>
+
+                {qrPlacement === 'card' && (
+                  <FileUploadField label="خلفية رمز QR (اختياري)" fieldKey="qr_background_url" uploadedUrls={uploadedUrls} setUploadedUrls={setUploadedUrls} uploading={uploading} setUploading={setUploading} />
+                )}
               </div>
             </div>
           </div>
