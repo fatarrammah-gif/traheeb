@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS traheeb_qr_tokens (
   qr_url     TEXT,                        -- CDN URL of styled QR PNG
   used       BOOLEAN NOT NULL DEFAULT false,
   used_at    TIMESTAMPTZ,
+  scan_count INT     NOT NULL DEFAULT 0,
+  max_scans  INT     NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS traheeb_qr_token_idx    ON traheeb_qr_tokens (token);

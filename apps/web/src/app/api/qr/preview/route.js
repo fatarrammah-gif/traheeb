@@ -44,7 +44,7 @@ export async function POST(request) {
 
     // Read token info WITHOUT marking as used
     const rows = await sql`
-      SELECT qt.used, qt.used_at, qt.label,
+      SELECT qt.used, qt.used_at, qt.label, qt.scan_count, qt.max_scans,
              g.name AS guest_name, g.companions
       FROM traheeb_qr_tokens qt
       JOIN traheeb_guests g ON g.id = qt.guest_id
@@ -67,9 +67,18 @@ export async function POST(request) {
       });
     }
 
+    const scanCount = qt.scan_count ?? 0;
+    const maxScans  = qt.max_scans  ?? 1;
+
     return Response.json({
       status: 'valid',
-      guest: { name: qt.guest_name, label: qt.label, companions: qt.companions },
+      guest: {
+        name: qt.guest_name,
+        label: qt.label,
+        companions: qt.companions,
+        scanCount,
+        maxScans,
+      },
     });
   } catch (err) {
     console.error('[POST /api/qr/preview]', err);
