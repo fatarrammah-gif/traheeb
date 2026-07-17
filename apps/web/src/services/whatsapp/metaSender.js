@@ -120,7 +120,7 @@ export async function sendInvitationTemplate({
     type: 'template',
     template: {
       name: templateName || TEMPLATE_NAME,
-      language: { code: TEMPLATE_LANGUAGE },
+      language: { code: templateName ? 'ar' : TEMPLATE_LANGUAGE },
       components,
     },
   };
