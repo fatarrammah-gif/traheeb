@@ -162,21 +162,28 @@ function buildLocationLink(event) {
 
 async function sendInvitations(event, guests) {
   const locationLink = buildLocationLink(event);
-  const isOverlay = event.qr_placement === 'overlay' && !!event.invitation_media_url;
+  // Overlay mode: QR is generated at invitation time (not after confirmation).
+  // Only requires qr_placement === 'overlay' — image fallback is handled inside generateOverlayQRForGuest.
+  const isOverlay = event.qr_placement === 'overlay';
 
   for (const guest of guests) {
     const companionsLabel = String(guest.companions || 0);
 
     // Overlay mode: generate QR now and overlay it on the invitation image.
-    // The resulting image is used as the template header instead of the plain invitation.
+    // generateOverlayQRForGuest handles missing invitation image by generating a plain QR card.
+    // Falls back to invitation_media_url if generation fails entirely.
     let imageUrl = event.invitation_media_url || null;
     if (isOverlay) {
       const overlayUrl = await generateOverlayQRForGuest(guest, event);
-      if (overlayUrl) imageUrl = overlayUrl;
-      // If generation failed, fall back to plain invitation image
+      console.log(`[invite] overlay QR result guest=${guest.id} overlayUrl=${overlayUrl ?? 'NULL'}`);
+      if (overlayUrl) {
+        imageUrl = overlayUrl;
+      } else {
+        console.warn(`[invite] overlay QR generation failed for guest=${guest.id}, falling back to invitation_media_url=${imageUrl ?? 'NULL'}`);
+      }
     }
 
-    console.log(`[invite] sending Meta template to phone="${guest.phone}" overlay=${isOverlay}`);
+    console.log(`[invite] sending to phone="${guest.phone}" overlay=${isOverlay} imageUrl=${imageUrl ?? 'NULL'} template=${isOverlay ? 'attendence_conf_10' : 'attendance_conf'}`);
     try {
       const result = await sendInvitationTemplate({
         phone: guest.phone,

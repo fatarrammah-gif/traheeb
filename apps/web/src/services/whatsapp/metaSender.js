@@ -127,7 +127,7 @@ export async function sendInvitationTemplate({
 
   const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
 
-  console.log(`[Meta] sending to=${to} template=${TEMPLATE_NAME}`);
+  console.log(`[Meta] sending to=${to} template=${templateName || TEMPLATE_NAME} components=${JSON.stringify(components).slice(0, 300)}`);
 
   const res = await fetch(url, {
     method: 'POST',
