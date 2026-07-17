@@ -146,13 +146,27 @@ function buildLocationLink(event) {
   return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
 }
 
+async function checkImageUrl(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+    if (res.ok) return url;
+    console.warn(`[invite] image URL returned ${res.status}, skipping image`);
+    return null;
+  } catch {
+    console.warn(`[invite] image URL unreachable, skipping image`);
+    return null;
+  }
+}
+
 async function sendInvitations(event, guests) {
   const locationLink = buildLocationLink(event);
+  const imageUrl = await checkImageUrl(event.invitation_media_url);
 
   for (const guest of guests) {
     const companionsLabel = String(guest.companions || 0);
 
-    console.log(`[invite] sending Meta template to phone="${guest.phone}"`);
+    console.log(`[invite] sending Meta template to phone="${guest.phone}" imageUrl=${imageUrl ?? 'none'}`);
     try {
       await sendInvitationTemplate({
         phone: guest.phone,
@@ -162,8 +176,8 @@ async function sendInvitations(event, guests) {
         time: formatTime12Arabic(event.time),
         venueName: event.venue || '-',
         companionsLabel: companionsLabel || '0',
-        locationLink,                              // short redirect → template {{link}}
-        imageUrl: event.invitation_media_url || null,
+        locationLink,
+        imageUrl,
         invitationToken: guest.invitation_token,
       });
       console.log(`[invite] template sent to ${guest.phone}`);
