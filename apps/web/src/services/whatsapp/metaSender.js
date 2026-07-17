@@ -63,6 +63,7 @@ export async function sendInvitationTemplate({
   locationLink,
   imageUrl,
   invitationToken,
+  templateName,
 }) {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
     throw new Error('META_PHONE_NUMBER_ID or META_ACCESS_TOKEN env var is missing');
@@ -118,7 +119,7 @@ export async function sendInvitationTemplate({
     to,
     type: 'template',
     template: {
-      name: TEMPLATE_NAME,
+      name: templateName || TEMPLATE_NAME,
       language: { code: TEMPLATE_LANGUAGE },
       components,
     },
