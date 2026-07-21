@@ -48,7 +48,7 @@ export async function POST(request) {
     // Atomic read-and-mark with SELECT FOR UPDATE
     const result = await sql.begin(async (tx) => {
       const qtRows = await tx`
-        SELECT qt.*, g.name AS guest_name, g.companions
+        SELECT qt.*, g.name AS guest_name, g.companions, g.status AS guest_status
         FROM traheeb_qr_tokens qt
         JOIN traheeb_guests g ON g.id = qt.guest_id
         WHERE qt.token = ${token}
@@ -59,6 +59,10 @@ export async function POST(request) {
 
       if (!qtRows.length) {
         return { status: 'invalid' };
+      }
+
+      if (qtRows[0].guest_status === 'declined') {
+        return { status: 'declined' };
       }
 
       const qt = qtRows[0];

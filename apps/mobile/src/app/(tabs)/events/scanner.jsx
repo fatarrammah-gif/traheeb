@@ -123,8 +123,9 @@ export default function ScannerScreen() {
 
   // Result overlay config
   const overlayColor =
-    result?.status === 'valid'       ? '#22C55E' :
-    result?.status === 'already_used' ? '#F59E0B' : '#EF4444';
+    result?.status === 'valid'        ? '#22C55E' :
+    result?.status === 'already_used' ? '#F59E0B' :
+    result?.status === 'declined'     ? '#EF4444' : '#EF4444';
 
   const overlayMessage =
     result?.status === 'valid'
@@ -133,9 +134,11 @@ export default function ScannerScreen() {
         : `✅ تم تسجيل الدخول\n${result.guest?.name}${result.guest?.companions > 0 ? ` (${result.guest.companions} مرافق)` : ''}`
       : result?.status === 'already_used'
         ? `⚠️ تم استخدام هذا الرمز مسبقاً\n${result.guest?.name ?? ''}`
-        : result?.status === 'invalid'
-          ? '❌ رمز غير صحيح'
-          : '⚠️ خطأ في الاتصال';
+        : result?.status === 'declined'
+          ? '❌ هذا الضيف اعتذر عن الحضور'
+          : result?.status === 'invalid'
+            ? '❌ رمز غير صحيح'
+            : '⚠️ خطأ في الاتصال';
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>

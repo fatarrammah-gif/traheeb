@@ -45,7 +45,7 @@ export async function POST(request) {
     // Read token info WITHOUT marking as used
     const rows = await sql`
       SELECT qt.used, qt.used_at, qt.label, qt.scan_count, qt.max_scans,
-             g.name AS guest_name, g.companions
+             g.name AS guest_name, g.companions, g.status AS guest_status
       FROM traheeb_qr_tokens qt
       JOIN traheeb_guests g ON g.id = qt.guest_id
       WHERE qt.token = ${token}
@@ -58,6 +58,10 @@ export async function POST(request) {
     }
 
     const qt = rows[0];
+
+    if (qt.guest_status === 'declined') {
+      return Response.json({ status: 'declined' });
+    }
 
     if (qt.used) {
       return Response.json({
