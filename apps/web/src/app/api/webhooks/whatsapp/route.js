@@ -145,7 +145,7 @@ async function handleStatus(s) {
         locationLink: buildLocationLink(guest),
         imageUrl,
         invitationToken: guest.invitation_token,
-        templateName: isOverlay ? 'attendence_conf_10' : undefined,
+        templateName: isOverlay ? 'attendence_conf_11' : undefined,
       });
 
       const newWamid = result?.messages?.[0]?.id ?? null;
