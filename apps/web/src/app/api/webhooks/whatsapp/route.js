@@ -5,7 +5,8 @@
  * POST — Incoming events: button taps (Quick Reply) from guests
  */
 import sql from '../../utils/sql.js';
-import { generateAndSendQRCards } from '../../../../services/qr/qrService.js';
+import { generateAndSendQRCards, generateOverlayQRForGuest } from '../../../../services/qr/qrService.js';
+import { sendInvitationTemplate } from '../../../../services/whatsapp/metaSender.js';
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traheeb_webhook_secret';
 
@@ -72,9 +73,7 @@ async function handleStatus(s) {
     WHERE message_id = ${s.id}
   `.catch(() => {});
 
-  // Update invitation delivery status on the guest record
   if (s.status === 'delivered' || s.status === 'read') {
-    // 'invited' = message received by the guest → badge shows "مدعو"
     const res = await sql`
       UPDATE traheeb_guests
       SET status = 'invited'
@@ -82,15 +81,116 @@ async function handleStatus(s) {
         AND status = 'sent'
     `;
     if (res.count > 0) console.log(`[Webhook] invitation ${s.id} delivered → guest status=invited`);
-  } else if (s.status === 'failed') {
-    const res = await sql`
-      UPDATE traheeb_guests
-      SET status = 'failed'
-      WHERE whatsapp_message_id = ${s.id}
-        AND status = 'sent'
-    `;
-    if (res.count > 0) console.log(`[Webhook] invitation ${s.id} failed → guest status=failed`);
+    return;
   }
+
+  // ── Failed ────────────────────────────────────────────────────────────────
+  const errorCode = s.errors?.[0]?.code;
+  const isMediaError = errorCode === 131053;
+
+  // Load guest + event in one query
+  const [guest] = await sql`
+    SELECT
+      g.id, g.name, g.phone, g.companions, g.event_id,
+      g.invitation_token, g.retry_count, g.status AS guest_status,
+      e.qr_placement, e.invitation_media_url, e.invitation_text,
+      e.name AS event_name, e.date AS event_date, e.time AS event_time,
+      e.venue, e.location, e.map_lat, e.map_lng,
+      e.event_logo_url, e.id AS event_id_col
+    FROM traheeb_guests g
+    JOIN traheeb_events e ON e.id = g.event_id
+    WHERE g.whatsapp_message_id = ${s.id}
+      AND g.status = 'sent'
+    LIMIT 1
+  `;
+
+  if (!guest) return; // already handled or not a tracked invitation
+
+  // Media error (ImgBB 500) — retry up to 3 times by re-uploading a fresh image
+  if (isMediaError && guest.retry_count < 3) {
+    console.log(`[Webhook] media error for guest=${guest.id} retry=${guest.retry_count + 1}/3 — retrying`);
+
+    try {
+      const isOverlay = guest.qr_placement === 'overlay';
+      let imageUrl = guest.invitation_media_url || null;
+
+      if (isOverlay) {
+        // Regenerate fresh QR overlay image (new ImgBB upload)
+        const event = {
+          id: guest.event_id_col,
+          name: guest.event_name,
+          date: guest.event_date,
+          time: guest.event_time,
+          event_logo_url: guest.event_logo_url,
+          invitation_media_url: guest.invitation_media_url,
+        };
+        const overlayUrl = await generateOverlayQRForGuest(
+          { id: guest.id, companions: guest.companions },
+          event,
+        );
+        if (overlayUrl) imageUrl = overlayUrl;
+      }
+
+      const result = await sendInvitationTemplate({
+        phone: guest.phone,
+        guestName: guest.name,
+        invitationText: (guest.invitation_text || '-').slice(0, 400),
+        date: guest.event_date || '-',
+        time: formatTime12Arabic(guest.event_time),
+        venueName: guest.venue || '-',
+        companionsLabel: String(guest.companions || 0),
+        locationLink: buildLocationLink(guest),
+        imageUrl,
+        invitationToken: guest.invitation_token,
+        templateName: isOverlay ? 'attendence_conf_10' : undefined,
+      });
+
+      const newWamid = result?.messages?.[0]?.id ?? null;
+      await sql`
+        UPDATE traheeb_guests
+        SET whatsapp_message_id = ${newWamid},
+            retry_count = ${guest.retry_count + 1}
+        WHERE id = ${guest.id}
+      `;
+      console.log(`[Webhook] retry sent guest=${guest.id} wamid=${newWamid}`);
+    } catch (err) {
+      console.error(`[Webhook] retry failed guest=${guest.id}:`, err.message);
+      await sql`UPDATE traheeb_guests SET status = 'failed', retry_count = ${guest.retry_count + 1} WHERE id = ${guest.id}`;
+    }
+    return;
+  }
+
+  // Max retries exceeded or non-media error — mark as failed
+  await sql`
+    UPDATE traheeb_guests SET status = 'failed' WHERE id = ${guest.id}
+  `;
+  console.log(`[Webhook] invitation ${s.id} failed (code=${errorCode}) → guest status=failed`);
+}
+
+function formatTime12Arabic(timeStr) {
+  if (!timeStr) return '-';
+  const [hStr, mStr] = String(timeStr).split(':');
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr || '0', 10);
+  const period = h < 12 ? 'صباحاً' : 'مساءً';
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${h}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+function buildLocationLink(event) {
+  if (event.map_lat && event.map_lng) {
+    return `https://maps.google.com/?q=${event.map_lat},${event.map_lng}`;
+  }
+  const loc = String(event.location ?? '').trim();
+  if (loc && loc.includes('q=')) {
+    try {
+      const fullUrl = loc.startsWith('http') ? loc : `https://${loc}`;
+      const q = new URL(fullUrl).searchParams.get('q');
+      if (q) return `https://maps.google.com/?q=${encodeURIComponent(q)}`;
+    } catch {}
+  }
+  return `https://maps.google.com/?q=${encodeURIComponent(event.venue || '')}`;
 }
 
 async function handleMessage(msg) {
