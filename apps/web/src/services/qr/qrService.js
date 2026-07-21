@@ -186,19 +186,22 @@ async function uploadToImgBB(buffer) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Poll URL until it returns 200 (max 10 attempts, 1s apart). */
-async function waitForUrl(url, maxAttempts = 10) {
+/** Poll URL until it returns 200 on a real GET (max 15 attempts, 2s apart). */
+async function waitForUrl(url, maxAttempts = 15) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5_000) });
+      const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(10_000) });
       if (res.ok) {
+        // Drain body so the connection closes cleanly
+        await res.arrayBuffer();
         console.log(`[QR] url ready after ${i + 1} attempt(s): ${url}`);
         return;
       }
-    } catch {
-      // ignore, retry
+      console.warn(`[QR] waitForUrl attempt ${i + 1} got ${res.status} for ${url}`);
+    } catch (err) {
+      console.warn(`[QR] waitForUrl attempt ${i + 1} error: ${err.message}`);
     }
-    await sleep(1000);
+    await sleep(2000);
   }
   console.warn(`[QR] url not confirmed ready after ${maxAttempts} attempts: ${url}`);
 }
