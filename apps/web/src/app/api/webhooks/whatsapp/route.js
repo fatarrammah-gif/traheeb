@@ -110,6 +110,9 @@ async function handleStatus(s) {
   if (isMediaError && guest.retry_count < 3) {
     console.log(`[Webhook] media error for guest=${guest.id} retry=${guest.retry_count + 1}/3 — retrying`);
 
+    // Stagger concurrent retries to avoid hammering ImgBB/CPU simultaneously
+    await new Promise(r => setTimeout(r, 3000 + Math.random() * 4000));
+
     try {
       const isOverlay = guest.qr_placement === 'overlay';
       let imageUrl = guest.invitation_media_url || null;
