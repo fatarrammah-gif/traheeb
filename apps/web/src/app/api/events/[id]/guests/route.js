@@ -183,7 +183,7 @@ async function sendInvitations(event, guests) {
       }
     }
 
-    console.log(`[invite] sending to phone="${guest.phone}" overlay=${isOverlay} imageUrl=${imageUrl ?? 'NULL'} template=${isOverlay ? 'attendence_conf_11' : 'attendance_conf'}`);
+    console.log(`[invite] sending to phone="${guest.phone}" overlay=${isOverlay} imageUrl=${imageUrl ?? 'NULL'} template=${isOverlay ? 'attendence_conf_10' : 'attendance_conf'}`);
     try {
       const result = await sendInvitationTemplate({
         phone: guest.phone,
