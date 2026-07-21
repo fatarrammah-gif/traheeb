@@ -337,6 +337,20 @@ export default function EventDetailPage() {
     }
   }
 
+  async function handleResendInvitation(guestId) {
+    setResendingGuests(prev => new Set(prev).add(guestId));
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${guestId}/resend-invitation`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) setToast({ message: data.error || 'حدث خطأ أثناء إعادة الإرسال', type: 'error' });
+      else {
+        setToast({ message: 'جارٍ إعادة الإرسال...', type: 'success' });
+        setGuests(prev => prev.map(g => g.id === guestId ? { ...g, status: 'sent' } : g));
+      }
+    } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
+    finally { setResendingGuests(prev => { const next = new Set(prev); next.delete(guestId); return next; }); }
+  }
+
   async function handleAddStaff(e) {
     e.preventDefault();
     if (!newStaffPhone.trim()) return;
@@ -771,8 +785,19 @@ export default function EventDetailPage() {
                           {/* Companions count */}
                           <span className="g-comp" style={{ fontWeight: 600, color: T.text }}>{companions}</span>
 
-                          {/* Status */}
-                          <span className="g-status-desktop"><StatusBadge status={g.status} /></span>
+                          {/* Status + resend button */}
+                          <div className="g-status-desktop" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <StatusBadge status={g.status} />
+                            {(g.status === 'sent' || g.status === 'failed') && (
+                              <button
+                                onClick={() => handleResendInvitation(g.id)}
+                                disabled={resendingGuests.has(g.id)}
+                                title="إعادة إرسال الدعوة"
+                                style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${T.border}`, background: T.surface, color: T.primary, fontSize: 13, cursor: resendingGuests.has(g.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: resendingGuests.has(g.id) ? 0.5 : 1 }}>
+                                {resendingGuests.has(g.id) ? '…' : '↩'}
+                              </button>
+                            )}
+                          </div>
 
                           {/* +/- adjuster */}
                           <div className="g-adjust" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
