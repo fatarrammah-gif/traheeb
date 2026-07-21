@@ -66,6 +66,7 @@ export async function generateOverlayQRForGuest(guest, event) {
 
     const imageUrl = await uploadToImgBB(cardBuffer);
     await sql`UPDATE traheeb_qr_tokens SET qr_url = ${imageUrl} WHERE id = ${qt.id}`;
+    await waitForUrl(imageUrl);
 
     console.log(`[QR] overlay done guest=${guest.id} max_scans=${maxScans} url=${imageUrl}`);
     return imageUrl;
