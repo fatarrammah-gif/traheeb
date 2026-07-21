@@ -87,18 +87,19 @@ export async function sendInvitationTemplate({
   }
 
   // Body — named parameters
-  components.push({
-    type: 'body',
-    parameters: [
-      { type: 'text', parameter_name: 'name',      text: sanitizeParam(guestName      || '-') },
-      { type: 'text', parameter_name: 'text_body', text: sanitizeParam(invitationText || '-') },
-      { type: 'text', parameter_name: 'date',      text: sanitizeParam(date           || '-') },
-      { type: 'text', parameter_name: 'time',      text: sanitizeParam(time           || '-') },
-      { type: 'text', parameter_name: 'location',  text: sanitizeParam(venueName      || '-') },
-      { type: 'text', parameter_name: 'people_no', text: sanitizeParam(companionsLabel || '0') },
-      { type: 'text', parameter_name: 'link',      text: sanitizeParam(locationLink   || '-') },
-    ],
-  });
+  // attendence_conf_11 does not include people_no
+  const bodyParams = [
+    { type: 'text', parameter_name: 'name',      text: sanitizeParam(guestName      || '-') },
+    { type: 'text', parameter_name: 'text_body', text: sanitizeParam(invitationText || '-') },
+    { type: 'text', parameter_name: 'date',      text: sanitizeParam(date           || '-') },
+    { type: 'text', parameter_name: 'time',      text: sanitizeParam(time           || '-') },
+    { type: 'text', parameter_name: 'location',  text: sanitizeParam(venueName      || '-') },
+    { type: 'text', parameter_name: 'link',      text: sanitizeParam(locationLink   || '-') },
+  ];
+  if (templateName !== 'attendence_conf_11') {
+    bodyParams.splice(5, 0, { type: 'text', parameter_name: 'people_no', text: sanitizeParam(companionsLabel || '0') });
+  }
+  components.push({ type: 'body', parameters: bodyParams });
 
   // Quick Reply buttons — payload tells webhook which button was tapped
   components.push({
