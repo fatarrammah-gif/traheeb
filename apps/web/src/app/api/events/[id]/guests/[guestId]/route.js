@@ -67,6 +67,10 @@ export async function DELETE(request, { params }) {
     const { user } = await authenticate(request);
     await getOwnedGuest(params.guestId, params.id, user.id);
 
+    // Delete related records not covered by CASCADE
+    await sql`DELETE FROM traheeb_guest_extra_qr WHERE guest_id = ${params.guestId}`.catch(() => {});
+
+    // traheeb_qr_tokens cascades automatically on guest delete
     await sql`DELETE FROM traheeb_guests WHERE id = ${params.guestId}`;
 
     return Response.json({ success: true });

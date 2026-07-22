@@ -105,6 +105,7 @@ export default function EventDetailPage() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(null);
   const [resendingGuests, setResendingGuests] = useState(new Set());
+  const [deletingGuests, setDeletingGuests] = useState(new Set());
   const [specificResend, setSpecificResend] = useState({});
   const [sendingExtraQR, setSendingExtraQR] = useState(new Set());
   const [adjustingGuests, setAdjustingGuests] = useState(new Set());
@@ -349,6 +350,22 @@ export default function EventDetailPage() {
       }
     } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
     finally { setResendingGuests(prev => { const next = new Set(prev); next.delete(guestId); return next; }); }
+  }
+
+  async function handleDeleteGuest(guestId) {
+    if (!window.confirm('هل أنت متأكد من حذف هذا الضيف وجميع بياناته؟')) return;
+    setDeletingGuests(prev => new Set(prev).add(guestId));
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${guestId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        setToast({ message: data.error || 'حدث خطأ أثناء الحذف', type: 'error' });
+      } else {
+        setGuests(prev => prev.filter(g => g.id !== guestId));
+        setToast({ message: 'تم حذف الضيف بنجاح', type: 'success' });
+      }
+    } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
+    finally { setDeletingGuests(prev => { const next = new Set(prev); next.delete(guestId); return next; }); }
   }
 
   async function handleAddStaff(e) {
@@ -799,7 +816,7 @@ export default function EventDetailPage() {
                             )}
                           </div>
 
-                          {/* +/- adjuster */}
+                          {/* +/- adjuster + delete */}
                           <div className="g-adjust" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <button
                               onClick={() => handleAdjustCompanions(g.id, -1)}
@@ -815,6 +832,13 @@ export default function EventDetailPage() {
                               disabled={isAdjusting}
                               style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.primarySoft, color: T.primary, fontSize: 18, fontWeight: 700, cursor: isAdjusting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, flexShrink: 0, opacity: isAdjusting ? 0.5 : 1 }}>
                               +
+                            </button>
+                            <button
+                              onClick={() => handleDeleteGuest(g.id)}
+                              disabled={deletingGuests.has(g.id)}
+                              title="حذف الضيف"
+                              style={{ width: 30, height: 30, borderRadius: 8, border: '1.5px solid #FECACA', background: '#FEF2F2', color: '#EF4444', fontSize: 14, fontWeight: 700, cursor: deletingGuests.has(g.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: deletingGuests.has(g.id) ? 0.5 : 1 }}>
+                              {deletingGuests.has(g.id) ? '…' : '🗑'}
                             </button>
                           </div>
                         </div>
