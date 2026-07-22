@@ -368,6 +368,22 @@ export default function EventDetailPage() {
     finally { setDeletingGuests(prev => { const next = new Set(prev); next.delete(guestId); return next; }); }
   }
 
+  function handleExportCSV() {
+    const rows = [['الاسم', 'رقم الجوال', 'الحالة']];
+    guests.forEach(g => {
+      const statusLabel = STATUS_CONFIG[g.status]?.label || g.status;
+      rows.push([g.name || '', g.phone || '', statusLabel]);
+    });
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${event?.name || 'guests'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleAddStaff(e) {
     e.preventDefault();
     if (!newStaffPhone.trim()) return;
@@ -677,9 +693,15 @@ export default function EventDetailPage() {
                     </button>
                   </div>
 
-                  {/* Search */}
-                  <input value={guestSearch} onChange={e => setGuestSearch(e.target.value)} placeholder="ابحث في المدعوين..."
-                    style={{ ...inp, marginBottom: 12 }} />
+                  {/* Search + export */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <input value={guestSearch} onChange={e => setGuestSearch(e.target.value)} placeholder="ابحث في المدعوين..."
+                      style={{ ...inp, flex: 1, marginBottom: 0 }} />
+                    <button onClick={handleExportCSV} title="تصدير Excel"
+                      style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.primary, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      ⬇ Excel
+                    </button>
+                  </div>
 
                   {/* Import buttons — hidden, kept for future use */}
                   <div style={{ display: 'none' }}>
