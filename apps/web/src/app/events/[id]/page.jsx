@@ -943,6 +943,9 @@ export default function EventDetailPage() {
                               {msgStatus[g.id] === 'failed' && (
                                 <span style={{ fontSize: 11, fontWeight: 700, background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>✗ فشل الإرسال</span>
                               )}
+                              {g.status === 'confirmed' && (!g.qr_tokens || g.qr_tokens.length === 0) && (
+                                <span title="تم التأكيد لكن لم يُرسَل رمز QR" style={{ fontSize: 11, fontWeight: 700, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>⚠️ بدون QR</span>
+                              )}
                             </div>
                             {/* Mobile-only tags */}
                             <div className="g-mobile-tags" style={{ display: 'none', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
