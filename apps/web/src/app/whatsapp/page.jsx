@@ -21,7 +21,7 @@ const T = {
 
 function LoadingProgress() {
   const [seconds, setSeconds] = useState(0);
-  const TOTAL = 40;
+  const TOTAL = 60;
 
   useEffect(() => {
     const t = setInterval(() => setSeconds(s => Math.min(s + 1, TOTAL)), 1000);
@@ -30,9 +30,9 @@ function LoadingProgress() {
 
   const pct = Math.round((seconds / TOTAL) * 100);
   const steps = [
-    { label: 'تشغيل المتصفح', done: seconds >= 5 },
-    { label: 'تحميل واتساب ويب', done: seconds >= 20 },
-    { label: 'توليد رمز QR', done: seconds >= 35 },
+    { label: 'تشغيل المتصفح', done: seconds >= 8 },
+    { label: 'تحميل واتساب ويب', done: seconds >= 25 },
+    { label: 'استعادة الجلسة / توليد رمز QR', done: seconds >= 50 },
   ];
 
   return (
@@ -104,6 +104,10 @@ export default function WhatsAppConnectPage() {
       } else if (data.qrDataUrl) {
         setQrDataUrl(data.qrDataUrl);
         setStatus('qr_ready');
+        startPolling();
+      } else if (data.status === 'initializing') {
+        // Session is restoring from saved credentials — keep polling
+        setStatus('loading');
         startPolling();
       }
     } catch {}

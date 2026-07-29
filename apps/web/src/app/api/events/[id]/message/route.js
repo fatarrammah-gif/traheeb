@@ -14,9 +14,6 @@ import sql from '../../../utils/sql.js';
 import { sendText, sendMedia } from '../../../../../services/whatsapp/sender.js';
 import { isConnected, getOrStartSession } from '../../../../../services/whatsapp/SessionManager.js';
 
-// The bot session is always keyed by SYSTEM (started via connect-bot.js)
-const SYSTEM_ID = process.env.WHATSAPP_BOT_USER_ID || 'SYSTEM';
-
 async function getOwnedEvent(eventId, userId) {
   const rows = await sql`
     SELECT id, user_id FROM traheeb_events
@@ -36,23 +33,23 @@ export async function POST(request, { params }) {
     const { user } = await authenticate(request);
     await getOwnedEvent(params.id, user.id);
 
-    // Use SYSTEM bot session first, fall back to organizer's own session
-    const sessionId = isConnected(SYSTEM_ID) ? SYSTEM_ID : user.id;
-    if (!isConnected(sessionId)) {
-      // Auto-trigger SYSTEM session start if credentials exist on disk
+    if (!isConnected(user.id)) {
+      // Auto-start session from saved credentials if available
       const { existsSync } = await import('fs');
-      if (existsSync(`.wwebjs_auth/session-${SYSTEM_ID}`)) {
-        getOrStartSession(SYSTEM_ID, process.env.WHATSAPP_BOT_PHONE || '+966538384048').catch(() => {});
+      if (existsSync(`.wwebjs_auth/session-${user.id}`)) {
+        getOrStartSession(user.id, user.phone).catch(() => {});
         return Response.json(
-          { error: 'واتساب يتصل الآن... أعد المحاولة بعد 30 ثانية' },
+          { error: 'واتساب يتصل... أعد المحاولة بعد 30 ثانية' },
           { status: 503 }
         );
       }
       return Response.json(
-        { error: 'واتساب غير متصل. شغّل connect-bot.js أولاً.' },
+        { error: 'واتساب غير متصل. اذهب إلى صفحة ربط واتساب أولاً.' },
         { status: 400 }
       );
     }
+
+    const sessionId = user.id;
 
     const body = await request.json();
     const { guestIds, text, imageBase64, imageMimeType } = body;
