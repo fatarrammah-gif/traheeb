@@ -115,6 +115,14 @@ export default function EventDetailPage() {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
+  // WhatsApp custom message
+  const [showMsgModal, setShowMsgModal] = useState(false);
+  const [msgTargets, setMsgTargets] = useState('all');
+  const [msgTargetName, setMsgTargetName] = useState('');
+  const [msgText, setMsgText] = useState('');
+  const [msgImage, setMsgImage] = useState(null); // { base64, mimeType, previewUrl }
+  const [msgSending, setMsgSending] = useState(false);
+
   // Reminder tracking
   const [reminderStats, setReminderStats] = useState(null); // { sent, delivered, read, failed, pending }
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -127,6 +135,7 @@ export default function EventDetailPage() {
   const csvInputRef = useRef(null);
   const vcfInputRef = useRef(null);
   const xlsxInputRef = useRef(null);
+  const msgImageInputRef = useRef(null);
 
   useEffect(() => { if (!token) window.location.href = '/login'; }, [token]);
   useEffect(() => { setContactsSupported('contacts' in navigator); }, []);
@@ -436,6 +445,58 @@ export default function EventDetailPage() {
     finally { setSendingReminder(false); }
   }
 
+  function openMsgModalForAll() {
+    setMsgTargets('all');
+    setMsgTargetName('جميع الضيوف');
+    setMsgText('');
+    setMsgImage(null);
+    setShowMsgModal(true);
+  }
+
+  function openMsgModalForGuest(guest) {
+    setMsgTargets([guest.id]);
+    setMsgTargetName(guest.name);
+    setMsgText('');
+    setMsgImage(null);
+    setShowMsgModal(true);
+  }
+
+  function handleMsgImageChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      const [header, base64] = dataUrl.split(',');
+      const mimeType = header.replace('data:', '').replace(';base64', '');
+      setMsgImage({ base64, mimeType, previewUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  async function handleSendWhatsAppMsg() {
+    if (!msgText.trim()) { setToast({ message: 'يرجى كتابة نص الرسالة', type: 'error' }); return; }
+    setMsgSending(true);
+    try {
+      const body = { guestIds: msgTargets, text: msgText.trim() };
+      if (msgImage) { body.imageBase64 = msgImage.base64; body.imageMimeType = msgImage.mimeType; }
+      const res = await authFetch(`/api/events/${id}/guests/message`, { method: 'POST', body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) { setToast({ message: data.error || 'فشل إرسال الرسالة', type: 'error' }); return; }
+      const failedCount = data.failed?.length ?? 0;
+      if (failedCount > 0) {
+        setToast({ message: `تم الإرسال لـ ${data.sent} ضيف، فشل لـ ${failedCount} ضيف`, type: 'error' });
+      } else {
+        setToast({ message: `تم إرسال الرسالة لـ ${data.sent} ضيف بنجاح ✓`, type: 'success' });
+      }
+      setShowMsgModal(false);
+      setMsgText('');
+      setMsgImage(null);
+    } catch { setToast({ message: 'حدث خطأ في الإرسال', type: 'error' }); }
+    finally { setMsgSending(false); }
+  }
+
   if (!token) return null;
 
   const confirmed = guests.filter(g => g.status === 'confirmed').length;
@@ -708,6 +769,12 @@ export default function EventDetailPage() {
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                     <input value={guestSearch} onChange={e => setGuestSearch(e.target.value)} placeholder="ابحث في المدعوين..."
                       style={{ ...inp, flex: 1, marginBottom: 0 }} />
+                    {guests.length > 0 && (
+                      <button onClick={openMsgModalForAll} title="إرسال رسالة واتساب لجميع الضيوف"
+                        style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#059669', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        💬 رسالة للكل
+                      </button>
+                    )}
                     <button onClick={handleExportCSV} title="تصدير Excel"
                       style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.primary, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       ⬇ Excel
@@ -803,18 +870,19 @@ export default function EventDetailPage() {
                 ) : (
                   <>
                     {/* Table header */}
-                    <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 130px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
+                    <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 44px 130px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
                       <span>الاسم</span>
                       <span className="g-phone">رقم الجوال</span>
                       <span className="g-comp">المرافقون</span>
                       <span className="g-status-desktop">الحالة</span>
+                      <span className="g-msg-col" title="إرسال رسالة">💬</span>
                       <span className="g-adjust">تعديل المرافقين</span>
                     </div>
                     {filteredGuests.map((g, i) => {
                       const isAdjusting = adjustingGuests.has(g.id);
                       const companions = g.companions ?? 0;
                       return (
-                        <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 130px', padding: '13px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center' }}>
+                        <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 44px 130px', padding: '13px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center' }}>
                           {/* Name */}
                           <div className="g-name-cell">
                             <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
@@ -847,6 +915,16 @@ export default function EventDetailPage() {
                                 {resendingGuests.has(g.id) ? '…' : '↩'}
                               </button>
                             )}
+                          </div>
+
+                          {/* Per-guest WhatsApp message button */}
+                          <div className="g-msg-col" style={{ display: 'flex', alignItems: 'center' }}>
+                            <button
+                              onClick={() => openMsgModalForGuest(g)}
+                              title="إرسال رسالة واتساب"
+                              style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#059669', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              💬
+                            </button>
                           </div>
 
                           {/* +/- adjuster + delete */}
@@ -938,6 +1016,64 @@ export default function EventDetailPage() {
         </div>
       )}
 
+      {/* Hidden image input for compose modal */}
+      <input ref={msgImageInputRef} type="file" accept="image/*" onChange={handleMsgImageChange} style={{ display: 'none' }} />
+
+      {/* WhatsApp Compose Message Modal */}
+      {showMsgModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }}>
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button onClick={() => { if (!msgSending) { setShowMsgModal(false); setMsgImage(null); setMsgText(''); } }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: T.muted }}>✕</button>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text, textAlign: 'right' }}>رسالة واتساب</div>
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 2, textAlign: 'right' }}>إلى: {msgTargetName}</div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Text input */}
+              <textarea
+                value={msgText}
+                onChange={e => setMsgText(e.target.value)}
+                placeholder="اكتب رسالتك هنا..."
+                rows={5}
+                dir="rtl"
+                style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: `1px solid ${T.border}`, fontSize: 14, color: T.text, background: T.bg, outline: 'none', resize: 'vertical', fontFamily: "'Cairo', sans-serif", boxSizing: 'border-box', lineHeight: 1.7 }}
+              />
+
+              {/* Image preview */}
+              {msgImage && (
+                <div style={{ position: 'relative', display: 'inline-block', alignSelf: 'flex-end' }}>
+                  <img src={msgImage.previewUrl} alt="" style={{ width: 110, height: 110, objectFit: 'cover', borderRadius: 12, border: `1px solid ${T.border}`, display: 'block' }} />
+                  <button onClick={() => setMsgImage(null)}
+                    style={{ position: 'absolute', top: -8, left: -8, width: 22, height: 22, borderRadius: '50%', background: '#EF4444', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* Actions row */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                {/* Send */}
+                <button onClick={handleSendWhatsAppMsg} disabled={msgSending}
+                  style={{ flex: 1, background: msgSending ? '#93C5FD' : GRAD, color: '#fff', border: 'none', borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 700, cursor: msgSending ? 'not-allowed' : 'pointer', fontFamily: "'Cairo', sans-serif" }}>
+                  {msgSending ? 'جارٍ الإرسال...' : 'إرسال ✓'}
+                </button>
+                {/* Attach image */}
+                <button onClick={() => msgImageInputRef.current?.click()} disabled={msgSending}
+                  title="إرفاق صورة"
+                  style={{ width: 48, height: 48, borderRadius: 12, border: `1px solid ${msgImage ? '#A7F3D0' : T.border}`, background: msgImage ? '#ECFDF5' : T.bg, color: msgImage ? '#059669' : T.muted, fontSize: 20, cursor: msgSending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  🖼
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr !important; } }
         .stat-cards { width: 100% !important; max-width: 100% !important; }
@@ -953,7 +1089,7 @@ export default function EventDetailPage() {
         }
         @media (max-width: 768px) {
           .guest-header, .guest-row { grid-template-columns: 1fr !important; }
-          .g-phone, .g-comp, .g-status-desktop { display: none !important; }
+          .g-phone, .g-comp, .g-status-desktop, .g-msg-col { display: none !important; }
           .g-adjust { justify-content: flex-end; }
           .g-name-cell { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
           .g-mobile-tags { display: flex !important; flex-shrink: 0; }
