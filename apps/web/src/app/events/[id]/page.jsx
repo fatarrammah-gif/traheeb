@@ -481,7 +481,7 @@ export default function EventDetailPage() {
     try {
       const body = { guestIds: msgTargets, text: msgText.trim() };
       if (msgImage) { body.imageBase64 = msgImage.base64; body.imageMimeType = msgImage.mimeType; }
-      const res = await authFetch(`/api/events/${id}/guests/message`, { method: 'POST', body: JSON.stringify(body) });
+      const res = await authFetch(`/api/events/${id}/message`, { method: 'POST', body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) { setToast({ message: data.error || 'فشل إرسال الرسالة', type: 'error' }); return; }
       const failedCount = data.failed?.length ?? 0;

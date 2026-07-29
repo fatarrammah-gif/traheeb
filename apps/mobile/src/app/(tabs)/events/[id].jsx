@@ -190,7 +190,7 @@ export default function EventDetail() {
         body.imageMimeType = msgImage.mimeType;
       }
 
-      const res = await fetchToWeb(`/api/events/${id}/guests/message`, {
+      const res = await fetchToWeb(`/api/events/${id}/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

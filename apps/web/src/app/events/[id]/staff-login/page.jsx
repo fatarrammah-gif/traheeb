@@ -49,10 +49,10 @@ export default function StaffLoginPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/otp/send', {
+      const res = await fetch('/api/auth/staff-otp-send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, eventId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'حدث خطأ'); return; }

@@ -9,10 +9,10 @@
  *   imageBase64?   — base64-encoded image data (without data URI prefix)
  *   imageMimeType? — e.g. "image/jpeg" (required when imageBase64 is present)
  */
-import { authenticate } from '../../../../utils/auth.js';
-import sql from '../../../../utils/sql.js';
-import { sendText, sendMedia } from '../../../../../../services/whatsapp/sender.js';
-import { isConnected } from '../../../../../../services/whatsapp/SessionManager.js';
+import { authenticate } from '../../../utils/auth.js';
+import sql from '../../../utils/sql.js';
+import { sendText, sendMedia } from '../../../../../services/whatsapp/sender.js';
+import { isConnected } from '../../../../../services/whatsapp/SessionManager.js';
 
 async function getOwnedEvent(eventId, userId) {
   const rows = await sql`
