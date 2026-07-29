@@ -82,6 +82,7 @@ export default function WhatsAppConnectPage() {
   const [status, setStatus] = useState('idle'); // idle | loading | qr_ready | connected | error
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const pollRef = useRef(null);
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     setMounted(true);
@@ -91,7 +92,7 @@ export default function WhatsAppConnectPage() {
     if (!mounted) return;
     if (!token) { window.location.href = '/login'; return; }
     checkStatus();
-    return () => clearInterval(pollRef.current);
+    return () => { clearInterval(pollRef.current); clearTimeout(timeoutRef.current); };
   }, [mounted, token]);
 
   async function checkStatus() {
@@ -112,12 +113,19 @@ export default function WhatsAppConnectPage() {
     setStatus('loading');
     setQrDataUrl(null);
     clearInterval(pollRef.current);
+    clearTimeout(timeoutRef.current);
+    // Fail with error if no QR arrives within 90 seconds
+    timeoutRef.current = setTimeout(() => {
+      setStatus(s => s === 'loading' ? 'error' : s);
+      clearInterval(pollRef.current);
+    }, 90000);
     try {
       const res = await authFetch('/api/whatsapp/connect', { method: 'POST' });
       const data = await res.json();
-      if (data.connected) { setStatus('connected'); return; }
+      if (data.connected) { clearTimeout(timeoutRef.current); setStatus('connected'); return; }
       startPolling();
     } catch {
+      clearTimeout(timeoutRef.current);
       setStatus('error');
     }
   }
@@ -138,12 +146,19 @@ export default function WhatsAppConnectPage() {
         const res = await authFetch('/api/whatsapp/status');
         const data = await res.json();
         if (data.connected) {
+          clearTimeout(timeoutRef.current);
           setStatus('connected');
           setQrDataUrl(null);
           clearInterval(pollRef.current);
         } else if (data.qrDataUrl) {
+          clearTimeout(timeoutRef.current);
           setQrDataUrl(data.qrDataUrl);
           setStatus('qr_ready');
+        } else if (data.status === 'disconnected') {
+          // Puppeteer failed to start or session crashed
+          clearTimeout(timeoutRef.current);
+          clearInterval(pollRef.current);
+          setStatus('error');
         }
       } catch {}
     }, 3000);
