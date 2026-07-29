@@ -20,10 +20,12 @@ import { handleIncomingMessage } from './messageHandler.js';
 // Map<userId, SessionEntry>
 // SessionEntry: { client, status, qrDataUrl }
 // status: 'initializing' | 'qr_ready' | 'connected' | 'disconnected'
-const sessions = new Map();
-
-// Prevent concurrent startSession calls for the same userId
-const pendingStarts = new Map(); // userId → Promise<SessionEntry>
+//
+// Stored on globalThis so Vite HMR module reloads don't wipe in-memory sessions.
+if (!globalThis.__wwebjs_sessions) globalThis.__wwebjs_sessions = new Map();
+if (!globalThis.__wwebjs_pending) globalThis.__wwebjs_pending = new Map();
+const sessions = globalThis.__wwebjs_sessions;
+const pendingStarts = globalThis.__wwebjs_pending;
 
 // Puppeteer launch args tuned for Railway's Docker environment.
 // --no-zygote removed: it prevents Chrome from spawning proper renderer processes,
