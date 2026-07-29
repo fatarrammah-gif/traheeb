@@ -14,6 +14,9 @@ import sql from '../../../utils/sql.js';
 import { sendText, sendMedia } from '../../../../../services/whatsapp/sender.js';
 import { isConnected } from '../../../../../services/whatsapp/SessionManager.js';
 
+// The bot session is always keyed by SYSTEM (started via connect-bot.js)
+const SYSTEM_ID = process.env.WHATSAPP_BOT_USER_ID || 'SYSTEM';
+
 async function getOwnedEvent(eventId, userId) {
   const rows = await sql`
     SELECT id, user_id FROM traheeb_events
@@ -33,9 +36,11 @@ export async function POST(request, { params }) {
     const { user } = await authenticate(request);
     await getOwnedEvent(params.id, user.id);
 
-    if (!isConnected(user.id)) {
+    // Use SYSTEM bot session (connect-bot.js) — fall back to organizer's own session
+    const sessionId = isConnected(SYSTEM_ID) ? SYSTEM_ID : user.id;
+    if (!isConnected(sessionId)) {
       return Response.json(
-        { error: 'واتساب غير متصل. يرجى الاتصال أولاً.' },
+        { error: 'واتساب غير متصل. شغّل connect-bot.js أو اربط واتساب من صفحة الربط.' },
         { status: 400 }
       );
     }
@@ -81,9 +86,9 @@ export async function POST(request, { params }) {
     for (const guest of guests) {
       try {
         if (mediaSource) {
-          await sendMedia(user.id, guest.phone, text.trim(), mediaSource);
+          await sendMedia(sessionId, guest.phone, text.trim(), mediaSource);
         } else {
-          await sendText(user.id, guest.phone, text.trim());
+          await sendText(sessionId, guest.phone, text.trim());
         }
         sent.push(guest.id);
       } catch (err) {

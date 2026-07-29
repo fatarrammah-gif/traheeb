@@ -193,6 +193,22 @@ export function markSessionDead(userId) {
  * whatsapp-web.js restores credentials from LocalAuth automatically.
  */
 export async function initAllSessions() {
+  // Always restore the SYSTEM bot session if its credentials are saved on disk
+  try {
+    const { existsSync } = await import('fs');
+    const SYSTEM_ID = process.env.WHATSAPP_BOT_USER_ID || 'SYSTEM';
+    const SYSTEM_PHONE = process.env.WHATSAPP_BOT_PHONE || '+966538384048';
+    if (existsSync(`.wwebjs_auth/session-${SYSTEM_ID}`)) {
+      console.log(`[WhatsApp] Restoring SYSTEM bot session (${SYSTEM_PHONE})...`);
+      startSession(SYSTEM_ID, SYSTEM_PHONE).catch((err) =>
+        console.error(`[WhatsApp] SYSTEM session error: ${err.message}`)
+      );
+    }
+  } catch (err) {
+    console.error('[WhatsApp] SYSTEM session init error:', err.message);
+  }
+
+  // Restore organizer sessions that were connected before the last restart
   try {
     const rows = await sql`
       SELECT ws.user_id, u.phone
@@ -200,7 +216,7 @@ export async function initAllSessions() {
       JOIN traheeb_users u ON u.id::text = ws.user_id::text
       WHERE ws.connected = true
     `;
-    console.log(`[WhatsApp] Restoring ${rows.length} session(s)...`);
+    console.log(`[WhatsApp] Restoring ${rows.length} organizer session(s)...`);
     for (const row of rows) {
       startSession(row.user_id, row.phone).catch((err) =>
         console.error(`[WhatsApp] Init error for userId=${row.user_id}: ${err.message}`)
