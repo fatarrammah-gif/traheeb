@@ -117,11 +117,14 @@ export default function EventDetailPage() {
 
   // WhatsApp custom message
   const [showMsgModal, setShowMsgModal] = useState(false);
-  const [msgTargets, setMsgTargets] = useState('all');
-  const [msgTargetName, setMsgTargetName] = useState('');
+  const [msgTargets, setMsgTargets] = useState([]);
   const [msgText, setMsgText] = useState('');
   const [msgImage, setMsgImage] = useState(null); // { base64, mimeType, previewUrl }
   const [msgSending, setMsgSending] = useState(false);
+
+  // Checkbox selection + per-guest message delivery status
+  const [selectedGuests, setSelectedGuests] = useState(new Set());
+  const [msgStatus, setMsgStatus] = useState({}); // { [guestId]: 'sent' | 'failed' }
 
   // Reminder tracking
   const [reminderStats, setReminderStats] = useState(null); // { sent, delivered, read, failed, pending }
@@ -445,17 +448,24 @@ export default function EventDetailPage() {
     finally { setSendingReminder(false); }
   }
 
-  function openMsgModalForAll() {
-    setMsgTargets('all');
-    setMsgTargetName('جميع الضيوف');
-    setMsgText('');
-    setMsgImage(null);
-    setShowMsgModal(true);
+  function toggleGuest(id) {
+    setSelectedGuests(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }
 
-  function openMsgModalForGuest(guest) {
-    setMsgTargets([guest.id]);
-    setMsgTargetName(guest.name);
+  function selectAll() {
+    setSelectedGuests(new Set(filteredGuests.map(g => g.id)));
+  }
+
+  function clearSelection() {
+    setSelectedGuests(new Set());
+  }
+
+  function openMsgModal(targets) {
+    setMsgTargets(targets); // array of IDs or 'all'
     setMsgText('');
     setMsgImage(null);
     setShowMsgModal(true);
@@ -484,6 +494,15 @@ export default function EventDetailPage() {
       const res = await authFetch(`/api/events/${id}/message`, { method: 'POST', body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) { setToast({ message: data.error || 'فشل إرسال الرسالة', type: 'error' }); return; }
+
+      // Mark per-guest delivery status
+      const updates = {};
+      const targetIds = msgTargets === 'all' ? guests.map(g => g.id) : msgTargets;
+      const failedIds = new Set((data.failed ?? []).map(f => f.id));
+      targetIds.forEach(gid => { updates[gid] = failedIds.has(gid) ? 'failed' : 'sent'; });
+      setMsgStatus(prev => ({ ...prev, ...updates }));
+      clearSelection();
+
       const failedCount = data.failed?.length ?? 0;
       if (failedCount > 0) {
         setToast({ message: `تم الإرسال لـ ${data.sent} ضيف، فشل لـ ${failedCount} ضيف`, type: 'error' });
@@ -769,17 +788,39 @@ export default function EventDetailPage() {
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                     <input value={guestSearch} onChange={e => setGuestSearch(e.target.value)} placeholder="ابحث في المدعوين..."
                       style={{ ...inp, flex: 1, marginBottom: 0 }} />
-                    {guests.length > 0 && (
-                      <button onClick={openMsgModalForAll} title="إرسال رسالة واتساب لجميع الضيوف"
-                        style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#059669', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        💬 رسالة للكل
-                      </button>
-                    )}
                     <button onClick={handleExportCSV} title="تصدير Excel"
                       style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.primary, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       ⬇ Excel
                     </button>
                   </div>
+
+                  {/* Selection action bar */}
+                  {guests.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {selectedGuests.size > 0 ? (
+                        <>
+                          <button
+                            onClick={() => openMsgModal(Array.from(selectedGuests))}
+                            style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#059669', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            💬 إرسال رسالة للـ {selectedGuests.size} مختار
+                          </button>
+                          <button onClick={clearSelection}
+                            style={{ padding: '7px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.muted, fontSize: 12, cursor: 'pointer' }}>
+                            إلغاء التحديد
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => openMsgModal('all')}
+                          style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#059669', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          💬 رسالة للكل
+                        </button>
+                      )}
+                      <button onClick={selectedGuests.size === filteredGuests.length ? clearSelection : selectAll}
+                        style={{ padding: '7px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginRight: 'auto' }}>
+                        {selectedGuests.size === filteredGuests.length && filteredGuests.length > 0 ? 'إلغاء الكل' : 'تحديد الكل'}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Import buttons — hidden, kept for future use */}
                   <div style={{ display: 'none' }}>
@@ -870,22 +911,39 @@ export default function EventDetailPage() {
                 ) : (
                   <>
                     {/* Table header */}
-                    <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 44px 130px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
+                    <div className="guest-header" style={{ display: 'grid', gridTemplateColumns: '32px 2fr 1.4fr 110px 110px 130px', padding: '10px 24px', borderBottom: `1px solid ${T.border}`, fontSize: 12, fontWeight: 600, color: T.muted }}>
+                      <input type="checkbox"
+                        checked={filteredGuests.length > 0 && filteredGuests.every(g => selectedGuests.has(g.id))}
+                        onChange={e => e.target.checked ? selectAll() : clearSelection()}
+                        style={{ cursor: 'pointer', width: 15, height: 15, accentColor: T.primary }} />
                       <span>الاسم</span>
                       <span className="g-phone">رقم الجوال</span>
                       <span className="g-comp">المرافقون</span>
                       <span className="g-status-desktop">الحالة</span>
-                      <span className="g-msg-col" title="إرسال رسالة">💬</span>
                       <span className="g-adjust">تعديل المرافقين</span>
                     </div>
                     {filteredGuests.map((g, i) => {
                       const isAdjusting = adjustingGuests.has(g.id);
                       const companions = g.companions ?? 0;
                       return (
-                        <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 110px 110px 44px 130px', padding: '13px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center' }}>
-                          {/* Name */}
+                        <div key={g.id} className="guest-row" style={{ display: 'grid', gridTemplateColumns: '32px 2fr 1.4fr 110px 110px 130px', padding: '13px 24px', borderBottom: i < filteredGuests.length - 1 ? `1px solid ${T.border}` : 'none', fontSize: 14, alignItems: 'center', background: selectedGuests.has(g.id) ? '#F0FDF4' : 'transparent' }}>
+                          {/* Checkbox */}
+                          <input type="checkbox"
+                            checked={selectedGuests.has(g.id)}
+                            onChange={() => toggleGuest(g.id)}
+                            style={{ cursor: 'pointer', width: 15, height: 15, accentColor: '#059669' }} />
+
+                          {/* Name + delivery status badge */}
                           <div className="g-name-cell">
-                            <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
+                              {msgStatus[g.id] === 'sent' && (
+                                <span style={{ fontSize: 11, fontWeight: 700, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>✓ استلم الرسالة</span>
+                              )}
+                              {msgStatus[g.id] === 'failed' && (
+                                <span style={{ fontSize: 11, fontWeight: 700, background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>✗ فشل الإرسال</span>
+                              )}
+                            </div>
                             {/* Mobile-only tags */}
                             <div className="g-mobile-tags" style={{ display: 'none', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <StatusBadge status={g.status} />
@@ -915,16 +973,6 @@ export default function EventDetailPage() {
                                 {resendingGuests.has(g.id) ? '…' : '↩'}
                               </button>
                             )}
-                          </div>
-
-                          {/* Per-guest WhatsApp message button */}
-                          <div className="g-msg-col" style={{ display: 'flex', alignItems: 'center' }}>
-                            <button
-                              onClick={() => openMsgModalForGuest(g)}
-                              title="إرسال رسالة واتساب"
-                              style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #A7F3D0', background: '#ECFDF5', color: '#059669', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              💬
-                            </button>
                           </div>
 
                           {/* +/- adjuster + delete */}
@@ -1028,7 +1076,13 @@ export default function EventDetailPage() {
               <button onClick={() => { if (!msgSending) { setShowMsgModal(false); setMsgImage(null); setMsgText(''); } }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: T.muted }}>✕</button>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.text, textAlign: 'right' }}>رسالة واتساب</div>
-                <div style={{ fontSize: 12, color: T.muted, marginTop: 2, textAlign: 'right' }}>إلى: {msgTargetName}</div>
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 2, textAlign: 'right' }}>
+                  إلى: {msgTargets === 'all'
+                    ? 'جميع الضيوف'
+                    : Array.isArray(msgTargets) && msgTargets.length === 1
+                      ? (guests.find(g => g.id === msgTargets[0])?.name ?? 'ضيف')
+                      : `${msgTargets?.length ?? 0} ضيوف مختارين`}
+                </div>
               </div>
             </div>
 
