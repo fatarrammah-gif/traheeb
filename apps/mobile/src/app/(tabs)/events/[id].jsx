@@ -1,9 +1,16 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  TextInput,
+  Image,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -16,8 +23,14 @@ import {
   Users,
   UserPlus,
   ScanLine,
+  MessageSquare,
+  X,
+  ImagePlus,
+  Send,
 } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
 import useEventStore from "@/store/eventStore";
+import fetchToWeb from "@/__create/fetch";
 
 /**
  * Parse an Arabic time string like "6:00 م" or "10:00 ص" into a Date
@@ -45,6 +58,8 @@ const C = {
   border: "#E5E7EB",
   primary: "#2563EB",
   primarySoft: "#EFF6FF",
+  green: "#16A34A",
+  greenSoft: "#DCFCE7",
 };
 
 const CATEGORY_COLORS = {
@@ -69,6 +84,15 @@ export default function EventDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const { events, fetchEventDetail } = useEventStore();
+
+  // ── Compose-message modal state ──────────────────────────────────────────
+  const [modalVisible, setModalVisible] = useState(false);
+  // targets: 'all' | string[] (guest IDs)
+  const [msgTargets, setMsgTargets] = useState("all");
+  const [msgTargetName, setMsgTargetName] = useState("");
+  const [msgText, setMsgText] = useState("");
+  const [msgImage, setMsgImage] = useState(null); // { uri, base64, mimeType }
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetchEventDetail(id).catch(() => {});
@@ -107,6 +131,95 @@ export default function EventDetail() {
     return new Date() >= twoHoursBefore;
   }, [event.date, event.time]);
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function openModalForAll() {
+    setMsgTargets("all");
+    setMsgTargetName("جميع الضيوف");
+    setMsgText("");
+    setMsgImage(null);
+    setModalVisible(true);
+  }
+
+  function openModalForGuest(guest) {
+    setMsgTargets([guest.id]);
+    setMsgTargetName(guest.name);
+    setMsgText("");
+    setMsgImage(null);
+    setModalVisible(true);
+  }
+
+  function closeModal() {
+    if (sending) return;
+    setModalVisible(false);
+    setMsgImage(null);
+    setMsgText("");
+  }
+
+  async function pickImage() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("تنبيه", "يجب منح إذن الوصول إلى المعرض");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      base64: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || "image/jpeg";
+      setMsgImage({ uri: asset.uri, base64: asset.base64, mimeType });
+    }
+  }
+
+  async function sendMessage() {
+    if (!msgText.trim()) {
+      Alert.alert("تنبيه", "يرجى كتابة نص الرسالة");
+      return;
+    }
+    setSending(true);
+    try {
+      const body = {
+        guestIds: msgTargets,
+        text: msgText.trim(),
+      };
+      if (msgImage?.base64) {
+        body.imageBase64 = msgImage.base64;
+        body.imageMimeType = msgImage.mimeType;
+      }
+
+      const res = await fetchToWeb(`/api/events/${id}/guests/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert("خطأ", data.error || "فشل إرسال الرسالة");
+        return;
+      }
+
+      const failedCount = data.failed?.length ?? 0;
+      if (failedCount > 0) {
+        Alert.alert(
+          "تم الإرسال جزئياً",
+          `تم الإرسال لـ ${data.sent} ضيف.\nفشل الإرسال لـ ${failedCount} ضيف.`
+        );
+      } else {
+        Alert.alert("تم", `تم إرسال الرسالة لـ ${data.sent} ضيف بنجاح`);
+      }
+      setModalVisible(false);
+      setMsgText("");
+      setMsgImage(null);
+    } catch (e) {
+      Alert.alert("خطأ", "حدث خطأ في الإرسال");
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: C.muted }}>
@@ -510,6 +623,7 @@ export default function EventDetail() {
               overflow: "hidden",
             }}
           >
+            {/* List header */}
             <View
               style={{
                 flexDirection: "row",
@@ -521,15 +635,34 @@ export default function EventDetail() {
                 borderBottomColor: C.border,
               }}
             >
-              <Text
+              {/* Send to all button */}
+              <TouchableOpacity
+                onPress={openModalForAll}
+                activeOpacity={0.75}
                 style={{
-                  fontFamily: "Inter_400Regular",
-                  fontSize: 12,
-                  color: C.fgMuted,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  backgroundColor: C.greenSoft,
+                  borderWidth: 1,
+                  borderColor: "#BBF7D0",
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
                 }}
               >
-                {guestList.length} ضيف
-              </Text>
+                <Text
+                  style={{
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 12,
+                    color: C.green,
+                  }}
+                >
+                  رسالة للكل
+                </Text>
+                <MessageSquare size={13} color={C.green} />
+              </TouchableOpacity>
+
               <Text
                 style={{
                   fontFamily: "Inter_600SemiBold",
@@ -555,6 +688,25 @@ export default function EventDetail() {
                     borderBottomColor: C.border,
                   }}
                 >
+                  {/* Per-guest message button */}
+                  <TouchableOpacity
+                    onPress={() => openModalForGuest(guest)}
+                    activeOpacity={0.7}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 8,
+                      backgroundColor: C.muted,
+                      borderWidth: 1,
+                      borderColor: C.border,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginRight: 6,
+                    }}
+                  >
+                    <MessageSquare size={14} color={C.fgMuted} />
+                  </TouchableOpacity>
+
                   {/* Companions tag */}
                   {(guest.companions || 0) > 0 && (
                     <View
@@ -705,6 +857,178 @@ export default function EventDetail() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Compose Message Modal ───────────────────────────────────────────── */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closeModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          {/* Backdrop */}
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+            activeOpacity={1}
+            onPress={closeModal}
+          />
+
+          {/* Sheet */}
+          <View
+            style={{
+              backgroundColor: C.bg,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingHorizontal: 20,
+              paddingTop: 20,
+              paddingBottom: insets.bottom + 24,
+              gap: 16,
+            }}
+          >
+            {/* Modal header */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <TouchableOpacity onPress={closeModal} activeOpacity={0.7}>
+                <X size={20} color={C.fgMuted} />
+              </TouchableOpacity>
+              <Text
+                style={{
+                  fontFamily: "Inter_600SemiBold",
+                  fontSize: 15,
+                  color: C.fg,
+                  textAlign: "right",
+                }}
+              >
+                رسالة واتساب لـ {msgTargetName}
+              </Text>
+            </View>
+
+            {/* Text input */}
+            <TextInput
+              value={msgText}
+              onChangeText={setMsgText}
+              placeholder="اكتب رسالتك هنا..."
+              placeholderTextColor={C.fgMuted}
+              multiline
+              textAlign="right"
+              style={{
+                fontFamily: "Inter_400Regular",
+                fontSize: 14,
+                color: C.fg,
+                backgroundColor: C.muted,
+                borderWidth: 1,
+                borderColor: C.border,
+                borderRadius: 10,
+                padding: 14,
+                minHeight: 110,
+                textAlignVertical: "top",
+              }}
+            />
+
+            {/* Image preview */}
+            {msgImage && (
+              <View style={{ position: "relative", alignSelf: "flex-end" }}>
+                <Image
+                  source={{ uri: msgImage.uri }}
+                  style={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: C.border,
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={() => setMsgImage(null)}
+                  style={{
+                    position: "absolute",
+                    top: -8,
+                    left: -8,
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: "#EF4444",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <X size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Bottom row: attach image + send */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              {/* Send button */}
+              <TouchableOpacity
+                onPress={sendMessage}
+                disabled={sending}
+                style={{
+                  flex: 1,
+                  backgroundColor: sending ? "#93C5FD" : C.primary,
+                  borderRadius: 10,
+                  padding: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+                activeOpacity={0.85}
+              >
+                {sending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Text
+                      style={{
+                        fontFamily: "Inter_600SemiBold",
+                        fontSize: 14,
+                        color: "#fff",
+                      }}
+                    >
+                      إرسال
+                    </Text>
+                    <Send size={16} color="#fff" />
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Attach image button */}
+              <TouchableOpacity
+                onPress={pickImage}
+                disabled={sending}
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 10,
+                  backgroundColor: C.muted,
+                  borderWidth: 1,
+                  borderColor: C.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                activeOpacity={0.75}
+              >
+                <ImagePlus size={20} color={msgImage ? C.primary : C.fgMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
