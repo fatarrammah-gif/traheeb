@@ -105,6 +105,7 @@ export default function EventDetailPage() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(null);
   const [resendingGuests, setResendingGuests] = useState(new Set());
+  const [resendingQR, setResendingQR] = useState(new Set());
   const [deletingGuests, setDeletingGuests] = useState(new Set());
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportRelations, setExportRelations] = useState({});
@@ -364,6 +365,17 @@ export default function EventDetailPage() {
       }
     } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
     finally { setResendingGuests(prev => { const next = new Set(prev); next.delete(guestId); return next; }); }
+  }
+
+  async function handleResendAllQR(guestId) {
+    setResendingQR(prev => new Set(prev).add(guestId));
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${guestId}/resend-all-qr`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) setToast({ message: data.error || 'حدث خطأ أثناء إعادة إرسال QR', type: 'error' });
+      else setToast({ message: data.message || 'جارٍ إعادة إرسال رمز QR...', type: 'success' });
+    } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
+    finally { setResendingQR(prev => { const next = new Set(prev); next.delete(guestId); return next; }); }
   }
 
   async function handleDeleteGuest(guestId) {
@@ -974,6 +986,15 @@ export default function EventDetailPage() {
                                 title="إعادة إرسال الدعوة"
                                 style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${T.border}`, background: T.surface, color: T.primary, fontSize: 13, cursor: resendingGuests.has(g.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: resendingGuests.has(g.id) ? 0.5 : 1 }}>
                                 {resendingGuests.has(g.id) ? '…' : '↩'}
+                              </button>
+                            )}
+                            {g.status === 'confirmed' && (
+                              <button
+                                onClick={() => handleResendAllQR(g.id)}
+                                disabled={resendingQR.has(g.id)}
+                                title="إعادة إرسال رمز QR"
+                                style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid #A7F3D0`, background: '#ECFDF5', color: '#059669', fontSize: 13, cursor: resendingQR.has(g.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: resendingQR.has(g.id) ? 0.5 : 1 }}>
+                                {resendingQR.has(g.id) ? '…' : '🎫'}
                               </button>
                             )}
                           </div>
