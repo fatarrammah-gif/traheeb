@@ -12,7 +12,7 @@
 import { authenticate } from '../../../utils/auth.js';
 import sql from '../../../utils/sql.js';
 import { sendText, sendMedia } from '../../../../../services/whatsapp/sender.js';
-import { isConnected } from '../../../../../services/whatsapp/SessionManager.js';
+import { isConnected, getOrStartSession } from '../../../../../services/whatsapp/SessionManager.js';
 
 // The bot session is always keyed by SYSTEM (started via connect-bot.js)
 const SYSTEM_ID = process.env.WHATSAPP_BOT_USER_ID || 'SYSTEM';
@@ -36,11 +36,20 @@ export async function POST(request, { params }) {
     const { user } = await authenticate(request);
     await getOwnedEvent(params.id, user.id);
 
-    // Use SYSTEM bot session (connect-bot.js) — fall back to organizer's own session
+    // Use SYSTEM bot session first, fall back to organizer's own session
     const sessionId = isConnected(SYSTEM_ID) ? SYSTEM_ID : user.id;
     if (!isConnected(sessionId)) {
+      // Auto-trigger SYSTEM session start if credentials exist on disk
+      const { existsSync } = await import('fs');
+      if (existsSync(`.wwebjs_auth/session-${SYSTEM_ID}`)) {
+        getOrStartSession(SYSTEM_ID, process.env.WHATSAPP_BOT_PHONE || '+966538384048').catch(() => {});
+        return Response.json(
+          { error: 'واتساب يتصل الآن... أعد المحاولة بعد 30 ثانية' },
+          { status: 503 }
+        );
+      }
       return Response.json(
-        { error: 'واتساب غير متصل. شغّل connect-bot.js أو اربط واتساب من صفحة الربط.' },
+        { error: 'واتساب غير متصل. شغّل connect-bot.js أولاً.' },
         { status: 400 }
       );
     }
