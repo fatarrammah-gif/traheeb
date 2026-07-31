@@ -78,6 +78,7 @@ async function resendAll(guest, tokens) {
       const cardBuffer = await generateQRCard({
         token:     qt.token,
         label:     qt.label,
+        guestName: guest.name,
         eventName: guest.event_name,
         eventDate: guest.event_date,
         eventTime: guest.event_time,

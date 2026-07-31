@@ -99,6 +99,7 @@ async function generateAndSendQRs(guest, qrTokens) {
     const pngBuffer = await generateQRCard({
       token:     qt.token,
       label:     qt.label,
+      guestName: guest.name,
       eventName: guest.event_name,
       eventDate: guest.event_date,
       eventTime: guest.event_time,

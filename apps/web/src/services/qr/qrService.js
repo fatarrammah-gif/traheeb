@@ -56,6 +56,7 @@ export async function generateOverlayQRForGuest(guest, event) {
       console.warn(`[QR] overlay: no invitation image — generating plain QR card`);
       cardBuffer = await generateQRCard({
         token, label: 'main',
+        guestName: guest.name || '',
         eventName: event.name || '',
         eventDate: event.date || '',
         eventTime: event.time || '',
@@ -131,6 +132,7 @@ export async function generateAndSendQRCards(guest) {
 
         const cardBuffer = await generateQRCard({
           token, label,
+          guestName: guest.name || '',
           eventName: event.name,
           eventDate: event.date,
           eventTime: event.time,
