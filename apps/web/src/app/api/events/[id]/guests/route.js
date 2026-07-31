@@ -39,21 +39,21 @@ export async function GET(request, { params }) {
     const guests = await sql`
       SELECT
         g.*,
-        gr.main_guest_id,
-        mg.name AS main_guest_name,
+        MAX(gr.main_guest_id::text)::uuid AS main_guest_id,
+        MAX(mg.name)                      AS main_guest_name,
         COALESCE(
           json_agg(DISTINCT jsonb_build_object('id', q.id, 'label', q.label, 'token', q.token, 'used', q.used, 'qr_url', q.qr_url))
           FILTER (WHERE q.id IS NOT NULL),
           '[]'
         ) AS qr_tokens,
-        (ex.guest_id IS NOT NULL) AS extra_qr_sent
+        bool_or(ex.guest_id IS NOT NULL)  AS extra_qr_sent
       FROM traheeb_guests g
       LEFT JOIN traheeb_guest_relations gr ON gr.guest_id = g.id
       LEFT JOIN traheeb_guests mg ON mg.id = gr.main_guest_id
       LEFT JOIN traheeb_qr_tokens q ON q.guest_id = g.id
       LEFT JOIN traheeb_guest_extra_qr ex ON ex.guest_id = g.id
       WHERE g.event_id = ${params.id}
-      GROUP BY g.id, gr.main_guest_id, mg.name, ex.guest_id
+      GROUP BY g.id
       ORDER BY g.created_at ASC
     `;
 
