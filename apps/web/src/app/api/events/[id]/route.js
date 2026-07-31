@@ -48,16 +48,29 @@ export async function GET(request, { params }) {
     const guests = await sql`
       SELECT
         g.*,
+        (
+          SELECT gr.main_guest_id
+          FROM traheeb_guest_relations gr
+          WHERE gr.guest_id = g.id
+          LIMIT 1
+        ) AS main_guest_id,
+        (
+          SELECT mg.name
+          FROM traheeb_guest_relations gr
+          JOIN traheeb_guests mg ON mg.id = gr.main_guest_id
+          WHERE gr.guest_id = g.id
+          LIMIT 1
+        ) AS main_guest_name,
         COALESCE(
           json_agg(q ORDER BY q.label) FILTER (WHERE q.id IS NOT NULL),
           '[]'
         ) AS qr_tokens,
-        (ex.guest_id IS NOT NULL) AS extra_qr_sent
+        bool_or(ex.guest_id IS NOT NULL) AS extra_qr_sent
       FROM traheeb_guests g
       LEFT JOIN traheeb_qr_tokens q ON q.guest_id = g.id
       LEFT JOIN traheeb_guest_extra_qr ex ON ex.guest_id = g.id
       WHERE g.event_id = ${event.id}
-      GROUP BY g.id, ex.guest_id
+      GROUP BY g.id
       ORDER BY g.created_at ASC
     `;
 
