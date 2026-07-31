@@ -28,14 +28,20 @@ export async function PATCH(request, { params }) {
     await getOwnedGuest(params.guestId, params.id, user.id);
 
     const body = await request.json();
-    const { name, phone, companions, status } = body;
+    const { name, phone, companions, status, main_guest_id } = body;
+
+    // main_guest_id can be explicitly set to null to clear the link
+    const mainGuestId = Object.prototype.hasOwnProperty.call(body, 'main_guest_id')
+      ? (main_guest_id || null)
+      : undefined;
 
     const [updated] = await sql`
       UPDATE traheeb_guests SET
-        name       = COALESCE(${name       ?? null}, name),
-        phone      = COALESCE(${phone      ?? null}, phone),
-        companions = COALESCE(${companions ?? null}, companions),
-        status     = COALESCE(${status     ?? null}, status)
+        name          = COALESCE(${name       ?? null}, name),
+        phone         = COALESCE(${phone      ?? null}, phone),
+        companions    = COALESCE(${companions ?? null}, companions),
+        status        = COALESCE(${status     ?? null}, status),
+        main_guest_id = CASE WHEN ${mainGuestId !== undefined} THEN ${mainGuestId ?? null} ELSE main_guest_id END
       WHERE id = ${params.guestId}
       RETURNING *
     `;

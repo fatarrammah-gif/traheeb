@@ -133,6 +133,12 @@ export default function EventDetailPage() {
   const [companionFields, setCompanionFields] = useState([]); // [{ label, name }]
   const [savingCompanions, setSavingCompanions] = useState(false);
 
+  // Link guest to main guest modal
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkingGuest, setLinkingGuest] = useState(null);
+  const [linkSearch, setLinkSearch] = useState('');
+  const [savingLink, setSavingLink] = useState(false);
+
   // Reminder tracking
   const [reminderStats, setReminderStats] = useState(null); // { sent, delivered, read, failed, pending }
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -416,6 +422,27 @@ export default function EventDetailPage() {
       setShowCompanionsModal(false);
     } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
     finally { setSavingCompanions(false); }
+  }
+
+  async function handleSaveLink(mainGuestId) {
+    if (!linkingGuest) return;
+    setSavingLink(true);
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${linkingGuest.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ main_guest_id: mainGuestId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setToast({ message: data.error || 'حدث خطأ', type: 'error' }); return; }
+      const mainName = mainGuestId ? guests.find(g => g.id === mainGuestId)?.name ?? '' : null;
+      setGuests(prev => prev.map(g =>
+        g.id === linkingGuest.id ? { ...g, main_guest_id: mainGuestId, main_guest_name: mainName } : g
+      ));
+      setToast({ message: mainGuestId ? 'تم الربط بالضيف الرئيسي' : 'تم إزالة الربط', type: 'success' });
+      setShowLinkModal(false);
+    } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
+    finally { setSavingLink(false); }
   }
 
   async function handleDeleteGuest(guestId) {
@@ -989,6 +1016,12 @@ export default function EventDetailPage() {
                           <div className="g-name-cell">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
+                              <button
+                                onClick={() => { setLinkingGuest(g); setLinkSearch(''); setShowLinkModal(true); }}
+                                title={g.main_guest_name ? `مرتبط بـ: ${g.main_guest_name} — اضغط للتغيير` : 'ربط بضيف رئيسي'}
+                                style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 6, border: g.main_guest_name ? '1px solid #BFDBFE' : `1px solid ${T.border}`, background: g.main_guest_name ? '#EFF6FF' : T.bg, color: g.main_guest_name ? '#2563EB' : T.muted, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                {g.main_guest_name ? `🔗 ${g.main_guest_name}` : '🔗'}
+                              </button>
                               {msgStatus[g.id] === 'sent' && (
                                 <span style={{ fontSize: 11, fontWeight: 700, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>✓ استلم الرسالة</span>
                               )}
@@ -1196,6 +1229,60 @@ export default function EventDetailPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link to Main Guest Modal */}
+      {showLinkModal && linkingGuest && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 420, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button onClick={() => setShowLinkModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: T.muted }}>✕</button>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>ربط بضيف رئيسي</div>
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{linkingGuest.name}</div>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: '12px 24px', borderBottom: `1px solid ${T.border}` }}>
+              <input
+                autoFocus
+                type="text"
+                dir="rtl"
+                value={linkSearch}
+                onChange={e => setLinkSearch(e.target.value)}
+                placeholder="ابحث عن الضيف الرئيسي..."
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 14, color: T.text, outline: 'none', fontFamily: "'Cairo', sans-serif", background: T.bg, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Guest list */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {/* Clear link option */}
+              {linkingGuest.main_guest_id && (
+                <div
+                  onClick={() => handleSaveLink(null)}
+                  style={{ padding: '12px 24px', cursor: 'pointer', borderBottom: `1px solid ${T.border}`, color: '#EF4444', fontSize: 14, fontWeight: 600 }}>
+                  ✕ إزالة الربط
+                </div>
+              )}
+              {guests
+                .filter(g => g.id !== linkingGuest.id && (!linkSearch || g.name.includes(linkSearch)))
+                .map(g => (
+                  <div
+                    key={g.id}
+                    onClick={() => handleSaveLink(g.id)}
+                    style={{ padding: '12px 24px', cursor: 'pointer', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: g.id === linkingGuest.main_guest_id ? T.primarySoft : 'transparent' }}>
+                    <span style={{ fontSize: 13, color: T.muted, direction: 'ltr' }}>{g.phone}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{g.name}</span>
+                  </div>
+                ))}
+            </div>
+
           </div>
         </div>
       )}
