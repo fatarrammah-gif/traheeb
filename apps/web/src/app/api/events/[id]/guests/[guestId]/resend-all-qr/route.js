@@ -1,8 +1,9 @@
 /**
  * POST /api/events/[id]/guests/[guestId]/resend-all-qr
  *
- * Force-resends ALL QR codes (main + companions) for a confirmed guest.
- * Uses existing tokens — does NOT generate new ones.
+ * Sends QR codes for any guest (confirmed, invited, or sent).
+ * If tokens already exist → resends them.
+ * If no tokens exist → generates new ones (main + companions).
  * Sends via Meta Cloud API + organizer's personal WhatsApp session if connected.
  */
 import { authenticate } from '../../../../../utils/auth.js';
@@ -38,18 +39,30 @@ export async function POST(request, { params }) {
 
     const guest = rows[0];
 
-    if (guest.status !== 'confirmed') {
-      return Response.json({ error: 'الضيف لم يؤكد حضوره بعد' }, { status: 400 });
-    }
-
-    const tokens = await sql`
+    let tokens = await sql`
       SELECT id, token, label FROM traheeb_qr_tokens
       WHERE guest_id = ${guest.id}
       ORDER BY label
     `;
 
+    // No tokens yet — generate them now (guests who haven't confirmed via link)
     if (!tokens.length) {
-      return Response.json({ error: 'لا توجد رموز QR لهذا الضيف' }, { status: 404 });
+      const { default: crypto } = await import('crypto');
+      const companions = Math.max(0, guest.companions ?? 0);
+      const labels = ['main', ...Array.from({ length: companions }, (_, i) => `companion-${i + 1}`)];
+      for (const label of labels) {
+        const token = crypto.randomBytes(16).toString('hex');
+        await sql`
+          INSERT INTO traheeb_qr_tokens (guest_id, event_id, token, label)
+          VALUES (${guest.id}, ${guest.event_id}, ${token}, ${label})
+          ON CONFLICT DO NOTHING
+        `;
+      }
+      tokens = await sql`
+        SELECT id, token, label FROM traheeb_qr_tokens
+        WHERE guest_id = ${guest.id}
+        ORDER BY label
+      `;
     }
 
     // Fire in background — don't block the response
@@ -57,7 +70,7 @@ export async function POST(request, { params }) {
       console.error('[resend-all-qr] background error:', err.message)
     );
 
-    return Response.json({ success: true, message: `جارٍ إعادة إرسال ${tokens.length} رمز QR` });
+    return Response.json({ success: true, message: `جارٍ إرسال ${tokens.length} رمز QR` });
   } catch (err) {
     if (err.status) return Response.json({ error: err.message }, { status: err.status });
     console.error('[POST resend-all-qr]', err);

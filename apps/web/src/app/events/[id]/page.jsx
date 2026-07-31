@@ -1065,11 +1065,11 @@ export default function EventDetailPage() {
                                 {resendingGuests.has(g.id) ? '…' : '↩'}
                               </button>
                             )}
-                            {g.status === 'confirmed' && (
+                            {(g.status === 'confirmed' || g.status === 'invited' || g.status === 'sent') && (
                               <button
                                 onClick={() => handleResendAllQR(g.id)}
                                 disabled={resendingQR.has(g.id)}
-                                title="إعادة إرسال رمز QR"
+                                title="إرسال رمز QR"
                                 style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid #A7F3D0`, background: '#ECFDF5', color: '#059669', fontSize: 13, cursor: resendingQR.has(g.id) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: resendingQR.has(g.id) ? 0.5 : 1 }}>
                                 {resendingQR.has(g.id) ? '…' : '🎫'}
                               </button>
