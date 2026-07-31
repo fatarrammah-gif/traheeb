@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useWebAuth, authFetch } from '../../../../utils/webAuth.js';
+import { useWebAuth } from '../../../../utils/webAuth.js';
 
 const LOGO = 'https://dtvoeevhaseb5.cloudfront.net/user-uploads/7881a02c-860c-49fb-be4b-2701f4d65e59.png';
 const GRAD = 'linear-gradient(135deg, #8A004F 0%, #C2185B 45%, #D81B72 100%)';
@@ -106,30 +106,44 @@ function buildRows(guests) {
 }
 
 export default function AttendancePage() {
-  const token = useWebAuth((s) => s.token);
+  const organizerToken = useWebAuth((s) => s.token);
   const [guests, setGuests] = useState([]);
   const [event, setEvent]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter]   = useState('all'); // all | attended | absent
   const [search, setSearch]   = useState('');
   const [id, setId]           = useState(null);
+  const [isStaff, setIsStaff] = useState(false);
 
   useEffect(() => {
-    if (!token) { window.location.href = '/login'; return; }
     const parts = window.location.pathname.split('/');
     const eventId = parts[parts.indexOf('events') + 1];
     setId(eventId);
 
+    // Accept organizer JWT or staff token
+    const staffToken = localStorage.getItem('traheeb_staff_token');
+    const staffEventId = localStorage.getItem('traheeb_staff_event_id');
+    const token = organizerToken || (staffEventId === eventId ? staffToken : null);
+
+    if (!token) {
+      window.location.href = `/events/${eventId}/staff-login`;
+      return;
+    }
+
+    if (!organizerToken && staffToken) setIsStaff(true);
+
+    const headers = { Authorization: `Bearer ${token}` };
+
     Promise.all([
-      authFetch(`/api/events/${eventId}`).then(r => r.json()),
-      authFetch(`/api/events/${eventId}/guests`).then(r => r.json()),
+      fetch(`/api/events/${eventId}`, { headers }).then(r => r.json()),
+      fetch(`/api/events/${eventId}/guests`, { headers }).then(r => r.json()),
     ]).then(([evData, gData]) => {
       setEvent(evData.event ?? evData);
       setGuests(gData.guests ?? []);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [token]);
+  }, [organizerToken]);
 
-  if (!token) return null;
+  if (!organizerToken && !isStaff) return null;
 
   const rows         = buildRows(guests.filter(g => g.status !== 'declined'));
   const attendedRows = rows.filter(r => r.attended);
@@ -158,7 +172,7 @@ export default function AttendancePage() {
             <img src={LOGO} alt="تراحيب" style={{ width: 62, height: 62, objectFit: 'contain', mixBlendMode: 'screen' }} />
           </a>
           <div style={{ height: 28, width: 1, background: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
-          <a href={id ? `/events/${id}` : '/dashboard'}
+          <a href={id ? (isStaff ? `/events/${id}/staff-view` : `/events/${id}`) : '/dashboard'}
             style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.85)', textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>
             ← {event?.name ?? 'الفعالية'}
           </a>

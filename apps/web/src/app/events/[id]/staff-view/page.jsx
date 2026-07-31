@@ -155,11 +155,17 @@ export default function StaffViewPage() {
             ))}
           </div>
 
-          {/* Scan QR button */}
-          <a href={`/events/${eventId}/staff-scan`}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: T.primary, borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 700, textDecoration: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-            📷 مسح رمز QR
-          </a>
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <a href={`/events/${eventId}/staff-scan`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: T.primary, borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 700, textDecoration: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+              📷 مسح رمز QR
+            </a>
+            <a href={`/events/${eventId}/attendance`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)', borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+              📊 تفاصيل الحضور
+            </a>
+          </div>
         </div>
       </div>
       <div style={{ background: GRAD }}>
