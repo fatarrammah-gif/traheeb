@@ -1056,7 +1056,7 @@ export default function EventDetailPage() {
                           {/* Status + resend button */}
                           <div className="g-status-desktop" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <StatusBadge status={g.status} />
-                            {(g.status === 'sent' || g.status === 'failed') && (
+                            {(g.status === 'sent' || g.status === 'failed' || g.status === 'invited') && (
                               <button
                                 onClick={() => handleResendInvitation(g.id)}
                                 disabled={resendingGuests.has(g.id)}
