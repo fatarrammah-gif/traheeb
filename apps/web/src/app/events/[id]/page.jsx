@@ -386,10 +386,10 @@ export default function EventDetailPage() {
       const data = await res.json();
       if (!res.ok) { setToast({ message: data.error || 'حدث خطأ أثناء إعادة إرسال QR', type: 'error' }); return; }
       setToast({ message: data.message || 'جارٍ إعادة إرسال رمز QR...', type: 'success' });
-      // Optimistically mark tokens as sent so the badge shows immediately
+      // Optimistically ensure qr_tokens is non-empty so the badge shows immediately
       setGuests(prev => prev.map(g =>
-        g.id === guestId
-          ? { ...g, qr_tokens: (g.qr_tokens || []).map(t => ({ ...t, qr_url: t.qr_url || 'sent' })) }
+        g.id === guestId && (!g.qr_tokens || g.qr_tokens.length === 0)
+          ? { ...g, qr_tokens: [{ id: 'optimistic', label: 'main' }] }
           : g
       ));
     } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
@@ -1032,7 +1032,7 @@ export default function EventDetailPage() {
                               {g.status === 'confirmed' && (!g.qr_tokens || g.qr_tokens.length === 0) && (
                                 <span title="تم التأكيد لكن لم يُرسَل رمز QR" style={{ fontSize: 11, fontWeight: 700, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>⚠️ بدون QR</span>
                               )}
-                              {g.status === 'confirmed' && g.qr_tokens?.some(t => t.qr_url) && (
+                              {g.status === 'confirmed' && g.qr_tokens?.length > 0 && (
                                 <span style={{ fontSize: 11, fontWeight: 700, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>✓ تم إرسال QR</span>
                               )}
                             </div>
