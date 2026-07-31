@@ -36,28 +36,42 @@ export async function GET(request, { params }) {
       await authenticateStaff(request, params.id);
     }
 
-    const guests = await sql`
-      SELECT
-        g.*,
-        MAX(gr.main_guest_id::text)::uuid AS main_guest_id,
-        MAX(mg.name)                      AS main_guest_name,
-        COALESCE(
-          json_agg(DISTINCT jsonb_build_object('id', q.id, 'label', q.label, 'token', q.token, 'used', q.used, 'qr_url', q.qr_url))
-          FILTER (WHERE q.id IS NOT NULL),
-          '[]'
-        ) AS qr_tokens,
-        bool_or(ex.guest_id IS NOT NULL)  AS extra_qr_sent
-      FROM traheeb_guests g
-      LEFT JOIN traheeb_guest_relations gr ON gr.guest_id = g.id
-      LEFT JOIN traheeb_guests mg ON mg.id = gr.main_guest_id
-      LEFT JOIN traheeb_qr_tokens q ON q.guest_id = g.id
-      LEFT JOIN traheeb_guest_extra_qr ex ON ex.guest_id = g.id
-      WHERE g.event_id = ${params.id}
-      GROUP BY g.id
-      ORDER BY g.created_at ASC
-    `;
+    const [guests, relations] = await Promise.all([
+      sql`
+        SELECT
+          g.*,
+          COALESCE(
+            json_agg(DISTINCT jsonb_build_object('id', q.id, 'label', q.label, 'token', q.token, 'used', q.used, 'qr_url', q.qr_url))
+            FILTER (WHERE q.id IS NOT NULL),
+            '[]'
+          ) AS qr_tokens,
+          bool_or(ex.guest_id IS NOT NULL) AS extra_qr_sent
+        FROM traheeb_guests g
+        LEFT JOIN traheeb_qr_tokens q ON q.guest_id = g.id
+        LEFT JOIN traheeb_guest_extra_qr ex ON ex.guest_id = g.id
+        WHERE g.event_id = ${params.id}
+        GROUP BY g.id
+        ORDER BY g.created_at ASC
+      `,
+      sql`
+        SELECT gr.guest_id, gr.main_guest_id, mg.name AS main_guest_name
+        FROM traheeb_guest_relations gr
+        JOIN traheeb_guests mg ON mg.id = gr.main_guest_id
+        WHERE gr.event_id = ${params.id}
+      `,
+    ]);
 
-    return Response.json({ guests });
+    // Merge relation data into each guest
+    const relMap = {};
+    for (const r of relations) relMap[r.guest_id] = r;
+
+    const result = guests.map(g => ({
+      ...g,
+      main_guest_id:   relMap[g.id]?.main_guest_id   ?? null,
+      main_guest_name: relMap[g.id]?.main_guest_name ?? null,
+    }));
+
+    return Response.json({ guests: result });
   } catch (err) {
     if (err.status) return Response.json({ error: err.message }, { status: err.status });
     console.error('[GET guests]', err);
