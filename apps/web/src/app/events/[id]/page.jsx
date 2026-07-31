@@ -1032,7 +1032,7 @@ export default function EventDetailPage() {
                               {g.status === 'confirmed' && (!g.qr_tokens || g.qr_tokens.length === 0) && (
                                 <span title="تم التأكيد لكن لم يُرسَل رمز QR" style={{ fontSize: 11, fontWeight: 700, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>⚠️ بدون QR</span>
                               )}
-                              {g.status === 'confirmed' && g.qr_tokens?.length > 0 && (
+                              {g.qr_tokens?.length > 0 && (
                                 <span style={{ fontSize: 11, fontWeight: 700, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: 6, padding: '1px 7px', whiteSpace: 'nowrap' }}>✓ تم إرسال QR</span>
                               )}
                             </div>
@@ -1056,7 +1056,7 @@ export default function EventDetailPage() {
                           {/* Status + resend button */}
                           <div className="g-status-desktop" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <StatusBadge status={g.status} />
-                            {(g.status === 'sent' || g.status === 'failed' || g.status === 'invited') && (
+                            {(g.status === 'sent' || g.status === 'failed') && (
                               <button
                                 onClick={() => handleResendInvitation(g.id)}
                                 disabled={resendingGuests.has(g.id)}
