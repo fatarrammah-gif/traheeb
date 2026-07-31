@@ -462,18 +462,14 @@ export default function EventDetailPage() {
   }
 
   function handleExportCSV() {
-    // Reset relations and open modal
-    const initial = {};
-    guests.forEach(g => { initial[g.id] = ''; });
-    setExportRelations(initial);
-    setShowExportModal(true);
+    doExportCSV();
   }
 
   function doExportCSV() {
     const rows = [['الاسم', 'رقم الجوال', 'الحالة', 'مرتبط بـ']];
     guests.forEach(g => {
       const statusLabel = STATUS_CONFIG[g.status]?.label || g.status;
-      rows.push([g.name || '', g.phone || '', statusLabel, exportRelations[g.id] || '']);
+      rows.push([g.name || '', g.phone || '', statusLabel, g.main_guest_name || '']);
     });
     const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -483,7 +479,6 @@ export default function EventDetailPage() {
     a.download = `${event?.name || 'guests'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    setShowExportModal(false);
   }
 
   async function handleAddStaff(e) {
@@ -1119,56 +1114,6 @@ export default function EventDetailPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Export modal */}
-      {showExportModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-            {/* Header */}
-            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>تصدير القائمة</div>
-                <div style={{ fontSize: 12, color: T.muted, marginTop: 3 }}>أدخل اسم الضيف الرئيسي لكل مرافق — اتركه فارغاً للضيوف الرئيسيين</div>
-              </div>
-              <button onClick={() => setShowExportModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: T.muted }}>✕</button>
-            </div>
-
-            {/* Table */}
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.2fr 100px 1.5fr', padding: '10px 24px', fontSize: 12, fontWeight: 700, color: T.muted, borderBottom: `1px solid ${T.border}`, background: T.primarySoft, position: 'sticky', top: 0 }}>
-                <span>الاسم</span>
-                <span>رقم الجوال</span>
-                <span>الحالة</span>
-                <span>مرتبط بـ (اختياري)</span>
-              </div>
-              {guests.map((g, i) => (
-                <div key={g.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.2fr 100px 1.5fr', padding: '10px 24px', borderBottom: i < guests.length - 1 ? `1px solid ${T.border}` : 'none', alignItems: 'center', fontSize: 13 }}>
-                  <span style={{ fontWeight: 600, color: T.text }}>{g.name}</span>
-                  <span style={{ color: T.muted, direction: 'ltr', textAlign: 'right' }}>{g.phone}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '2px 8px', background: STATUS_CONFIG[g.status]?.bg, color: STATUS_CONFIG[g.status]?.color, border: `1px solid ${STATUS_CONFIG[g.status]?.border}`, display: 'inline-block' }}>
-                    {STATUS_CONFIG[g.status]?.label || g.status}
-                  </span>
-                  <input
-                    value={exportRelations[g.id] || ''}
-                    onChange={e => setExportRelations(prev => ({ ...prev, [g.id]: e.target.value }))}
-                    placeholder="اسم الضيف الرئيسي..."
-                    list="guest-names-list"
-                    style={{ padding: '6px 10px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12, color: T.text, outline: 'none', fontFamily: "'Cairo', sans-serif", width: '100%' }}
-                  />
-                </div>
-              ))}
-              <datalist id="guest-names-list">
-                {guests.map(g => <option key={g.id} value={g.name} />)}
-              </datalist>
-            </div>
-
-            {/* Footer */}
-            <div style={{ padding: '16px 24px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowExportModal(false)} style={{ padding: '9px 20px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>إلغاء</button>
-              <button onClick={doExportCSV} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: GRAD, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>⬇ تصدير Excel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Hidden image input for compose modal */}
       <input ref={msgImageInputRef} type="file" accept="image/*" onChange={handleMsgImageChange} style={{ display: 'none' }} />
 
