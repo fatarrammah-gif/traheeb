@@ -428,16 +428,16 @@ export default function EventDetailPage() {
     if (!linkingGuest) return;
     setSavingLink(true);
     try {
-      const res = await authFetch(`/api/events/${id}/guests/${linkingGuest.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ main_guest_id: mainGuestId }),
-      });
+      const url = `/api/events/${id}/guests/${linkingGuest.id}/main-guest`;
+      const res = mainGuestId
+        ? await authFetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ main_guest_id: mainGuestId }) })
+        : await authFetch(url, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) { setToast({ message: data.error || 'حدث خطأ', type: 'error' }); return; }
-      const mainName = mainGuestId ? guests.find(g => g.id === mainGuestId)?.name ?? '' : null;
       setGuests(prev => prev.map(g =>
-        g.id === linkingGuest.id ? { ...g, main_guest_id: mainGuestId, main_guest_name: mainName } : g
+        g.id === linkingGuest.id
+          ? { ...g, main_guest_id: mainGuestId ?? null, main_guest_name: data.main_guest_name ?? null }
+          : g
       ));
       setToast({ message: mainGuestId ? 'تم الربط بالضيف الرئيسي' : 'تم إزالة الربط', type: 'success' });
       setShowLinkModal(false);
