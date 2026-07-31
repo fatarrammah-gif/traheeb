@@ -291,12 +291,12 @@ export async function generateQRCard({
 
     // Line 3 — event name
     ctx.font      = `32px ${_fontFamily}`;
-    ctx.fillStyle = mutedRgba;
+    ctx.fillStyle = `rgba(${dR},${dG},${dB},0.85)`;
     ctx.fillText(arSmart(eventName || ''), CARD_W / 2, 272);
 
     // Line 4 — date (with calendar icon)
     ctx.font      = `bold 26px ${_dateTimeFontFamily}`;
-    ctx.fillStyle = `rgba(${dR},${dG},${dB},0.65)`;
+    ctx.fillStyle = `rgba(${dR},${dG},${dB},0.85)`;
     const dateStr = arSmart(String(eventDate || ''));
     const dateW   = ctx.measureText(dateStr).width;
     ctx.fillText(dateStr, CARD_W / 2, 354);
@@ -356,7 +356,7 @@ export async function generateQRCard({
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.font         = `26px ${_fontFamily}`;
-    ctx.fillStyle    = mutedRgba;
+    ctx.fillStyle    = `rgba(${dR},${dG},${dB},0.85)`;
     ctx.fillText(ar('الرجاء إبراز البطاقة عند الدخول'), CARD_W / 2, B_Y + B_SIZE + 100);
     ctx.restore();
   }
