@@ -127,6 +127,12 @@ export default function EventDetailPage() {
   const [selectedGuests, setSelectedGuests] = useState(new Set());
   const [msgStatus, setMsgStatus] = useState({}); // { [guestId]: 'sent' | 'failed' }
 
+  // Companion names modal
+  const [showCompanionsModal, setShowCompanionsModal] = useState(false);
+  const [companionsGuest, setCompanionsGuest] = useState(null); // the guest being edited
+  const [companionFields, setCompanionFields] = useState([]); // [{ label, name }]
+  const [savingCompanions, setSavingCompanions] = useState(false);
+
   // Reminder tracking
   const [reminderStats, setReminderStats] = useState(null); // { sent, delivered, read, failed, pending }
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -376,6 +382,40 @@ export default function EventDetailPage() {
       else setToast({ message: data.message || 'جارٍ إعادة إرسال رمز QR...', type: 'success' });
     } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
     finally { setResendingQR(prev => { const next = new Set(prev); next.delete(guestId); return next; }); }
+  }
+
+  function openCompanionsModal(guest) {
+    const count = guest.companions ?? 0;
+    const existing = Array.isArray(guest.companion_names) ? guest.companion_names : [];
+    const fields = Array.from({ length: count }, (_, i) => {
+      const label = `companion-${i + 1}`;
+      const found = existing.find(c => c.label === label);
+      return { label, name: found?.name ?? '' };
+    });
+    setCompanionsGuest(guest);
+    setCompanionFields(fields);
+    setShowCompanionsModal(true);
+  }
+
+  async function handleSaveCompanions() {
+    if (!companionsGuest) return;
+    setSavingCompanions(true);
+    try {
+      const res = await authFetch(`/api/events/${id}/guests/${companionsGuest.id}/companions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companions: companionFields.filter(c => c.name.trim()) }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setToast({ message: data.error || 'حدث خطأ', type: 'error' }); return; }
+      // Update local guest record with new companion_names
+      setGuests(prev => prev.map(g =>
+        g.id === companionsGuest.id ? { ...g, companion_names: data.companions } : g
+      ));
+      setToast({ message: 'تم حفظ أسماء المرافقين', type: 'success' });
+      setShowCompanionsModal(false);
+    } catch { setToast({ message: 'حدث خطأ في الاتصال', type: 'error' }); }
+    finally { setSavingCompanions(false); }
   }
 
   async function handleDeleteGuest(guestId) {
@@ -1016,6 +1056,14 @@ export default function EventDetailPage() {
                               style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.primarySoft, color: T.primary, fontSize: 18, fontWeight: 700, cursor: isAdjusting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, flexShrink: 0, opacity: isAdjusting ? 0.5 : 1 }}>
                               +
                             </button>
+                            {companions > 0 && (
+                              <button
+                                onClick={() => openCompanionsModal(g)}
+                                title="أسماء المرافقين"
+                                style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid #BFDBFE`, background: '#EFF6FF', color: '#2563EB', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                👥
+                              </button>
+                            )}
                             <button
                               onClick={() => handleDeleteGuest(g.id)}
                               disabled={deletingGuests.has(g.id)}
@@ -1148,6 +1196,52 @@ export default function EventDetailPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Companion Names Modal */}
+      {showCompanionsModal && companionsGuest && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 460, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }}>
+
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button onClick={() => setShowCompanionsModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: T.muted }}>✕</button>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>أسماء المرافقين</div>
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>الضيف الرئيسي: {companionsGuest.name}</div>
+              </div>
+            </div>
+
+            {/* Fields */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
+              {companionFields.length === 0 && (
+                <p style={{ textAlign: 'center', color: T.muted, fontSize: 14 }}>لا يوجد مرافقون لهذا الضيف</p>
+              )}
+              {companionFields.map((c, i) => (
+                <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: T.muted, whiteSpace: 'nowrap', minWidth: 80, textAlign: 'right' }}>مرافق {i + 1}</span>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={c.name}
+                    onChange={e => setCompanionFields(prev => prev.map((f, j) => j === i ? { ...f, name: e.target.value } : f))}
+                    placeholder={`اسم المرافق ${i + 1}...`}
+                    style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 14, color: T.text, outline: 'none', fontFamily: "'Cairo', sans-serif", background: T.bg }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowCompanionsModal(false)} style={{ padding: '9px 20px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Cairo', sans-serif" }}>إلغاء</button>
+              <button onClick={handleSaveCompanions} disabled={savingCompanions} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: GRAD, color: '#fff', fontSize: 13, fontWeight: 700, cursor: savingCompanions ? 'not-allowed' : 'pointer', opacity: savingCompanions ? 0.7 : 1, fontFamily: "'Cairo', sans-serif" }}>
+                {savingCompanions ? 'جارٍ الحفظ...' : 'حفظ'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}
