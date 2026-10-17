@@ -1,5 +1,5 @@
 /**
- * Meta WhatsApp Cloud API — sends the `attendance_conf` template.
+ * Meta WhatsApp Cloud API — sends the `attendence_conf_10` template.
  *
  * Template variables:
  *   name       — guest name

@@ -386,9 +386,8 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
     console.log(`[generator] overlay QR color: base=${baseColor} darkened=${qrDarkColor}`);
   }
 
-  // QR size: ~22% of the shorter side, clamped between 120–300 px
-  const qrSize = Math.max(120, Math.min(300, Math.round(Math.min(imgW, imgH) * 0.22)));
-  const margin = Math.round(imgW * 0.04);
+  // QR size: ~32% of the shorter side, clamped between 180–420 px
+  const qrSize = Math.max(180, Math.min(420, Math.round(Math.min(imgW, imgH) * 0.32)));
 
   // Transparent background for QR modules light cells
   const qrPng = await QRCode.toBuffer(token, {
@@ -418,8 +417,10 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
   // No padding — transparent background needs no white border
   const qrFinal = await sharp(qrCanvas.toBuffer('image/png')).png().toBuffer();
 
+  // Top edge of the QR sits just under the vertical middle of the invitation,
+  // clamped so it never overflows past the bottom edge.
   const left = Math.max(0, Math.round((imgW - qrSize) / 2));
-  const top  = Math.max(0, imgH - qrSize - margin - 300);
+  const top  = Math.max(0, Math.min(Math.round(imgH * 0.52), imgH - qrSize - Math.round(imgW * 0.04)));
 
   const result = await sharp(invitationBuffer)
     .png()
