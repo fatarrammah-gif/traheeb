@@ -417,10 +417,11 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
   // No padding — transparent background needs no white border
   const qrFinal = await sharp(qrCanvas.toBuffer('image/png')).png().toBuffer();
 
-  // Top edge of the QR sits just under the vertical middle of the invitation,
-  // clamped so it never overflows past the bottom edge.
+  // Top edge of the QR sits at the first division line when the lower half
+  // (50%–100%) of the invitation is split into thirds — i.e. ~66.7% of imgH.
+  // Clamped so it never overflows past the bottom edge.
   const left = Math.max(0, Math.round((imgW - qrSize) / 2));
-  const top  = Math.max(0, Math.min(Math.round(imgH * 0.52), imgH - qrSize - Math.round(imgW * 0.04)));
+  const top  = Math.max(0, Math.min(Math.round(imgH * (0.5 + (1 / 3) * 0.5)), imgH - qrSize - Math.round(imgW * 0.04)));
 
   const result = await sharp(invitationBuffer)
     .png()
