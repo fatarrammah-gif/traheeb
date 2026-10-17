@@ -386,8 +386,8 @@ export async function generateQROnInvitation({ token, label, invitationBuffer, l
     console.log(`[generator] overlay QR color: base=${baseColor} darkened=${qrDarkColor}`);
   }
 
-  // QR size: ~38% of the shorter side, clamped between 200–460 px
-  const qrSize = Math.max(200, Math.min(460, Math.round(Math.min(imgW, imgH) * 0.38)));
+  // QR size: ~44% of the shorter side, clamped between 220–500 px
+  const qrSize = Math.max(220, Math.min(500, Math.round(Math.min(imgW, imgH) * 0.44)));
 
   // Transparent background for QR modules light cells
   const qrPng = await QRCode.toBuffer(token, {
