@@ -48,13 +48,13 @@ function buildRows(guests) {
     if (isOverlay) {
       const scanCount = mainToken.scan_count ?? 0;
       const maxScans  = mainToken.max_scans;
+      const scanLog   = mainToken.scan_log ?? [];
 
       for (let i = 0; i < maxScans; i++) {
         const attended = scanCount > i;
-        // Timestamp is only stored for the final scan (used_at set when token exhausted)
-        const isLastScan = i === maxScans - 1;
-        const attendedAt = attended && isLastScan && mainToken.used_at
-          ? formatDateTime(mainToken.used_at)
+        // Each scan's own timestamp, recorded in order of admission (not tied to main/companion identity)
+        const attendedAt = attended && scanLog[i]
+          ? formatDateTime(scanLog[i])
           : null;
 
         rows.push({

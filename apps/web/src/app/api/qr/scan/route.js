@@ -82,8 +82,9 @@ export async function POST(request) {
       await tx`
         UPDATE traheeb_qr_tokens
         SET scan_count = ${newScanCount},
-            used    = ${exhausted},
-            used_at = CASE WHEN ${exhausted} THEN now() ELSE used_at END
+            used     = ${exhausted},
+            used_at  = CASE WHEN ${exhausted} THEN now() ELSE used_at END,
+            scan_log = scan_log || jsonb_build_array(to_jsonb(now()))
         WHERE id = ${qt.id}
       `;
 

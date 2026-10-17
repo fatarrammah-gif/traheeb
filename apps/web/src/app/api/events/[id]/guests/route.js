@@ -53,7 +53,7 @@ export async function GET(request, { params }) {
           LIMIT 1
         ) AS main_guest_name,
         COALESCE(
-          json_agg(DISTINCT jsonb_build_object('id', q.id, 'label', q.label, 'token', q.token, 'used', q.used, 'qr_url', q.qr_url, 'max_scans', q.max_scans, 'scan_count', q.scan_count, 'used_at', q.used_at))
+          json_agg(DISTINCT jsonb_build_object('id', q.id, 'label', q.label, 'token', q.token, 'used', q.used, 'qr_url', q.qr_url, 'max_scans', q.max_scans, 'scan_count', q.scan_count, 'used_at', q.used_at, 'scan_log', q.scan_log))
           FILTER (WHERE q.id IS NOT NULL),
           '[]'
         ) AS qr_tokens,
