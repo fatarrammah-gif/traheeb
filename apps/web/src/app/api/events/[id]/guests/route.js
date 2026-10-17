@@ -197,7 +197,7 @@ async function sendInvitations(event, guests) {
       }
     }
 
-    console.log(`[invite] sending to phone="${guest.phone}" overlay=${isOverlay} imageUrl=${imageUrl ?? 'NULL'} template=${isOverlay ? 'attendence_conf_11' : 'attendance_conf'}`);
+    console.log(`[invite] sending to phone="${guest.phone}" overlay=${isOverlay} imageUrl=${imageUrl ?? 'NULL'} template=${isOverlay ? 'attendence_conf_10' : 'attendance_conf'}`);
     try {
       const result = await sendInvitationTemplate({
         phone: guest.phone,
@@ -210,7 +210,7 @@ async function sendInvitations(event, guests) {
         locationLink,
         imageUrl,
         invitationToken: guest.invitation_token,
-        templateName: isOverlay ? 'attendence_conf_11' : undefined,
+        templateName: isOverlay ? 'attendence_conf_10' : undefined,
       });
       // Store Meta message ID so delivery-status webhooks can find this guest
       const wamid = result?.messages?.[0]?.id ?? null;

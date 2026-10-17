@@ -89,7 +89,7 @@ export async function POST(request, { params }) {
       locationLink: buildLocationLink(guest),
       imageUrl,
       invitationToken: guest.invitation_token,
-      templateName: isOverlay ? 'attendence_conf_11' : undefined,
+      templateName: isOverlay ? 'attendence_conf_10' : undefined,
     });
 
     const wamid = result?.messages?.[0]?.id ?? null;
