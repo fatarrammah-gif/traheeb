@@ -231,6 +231,9 @@ export default function ScanPage() {
 
               <p style={{ fontSize: 14, color: '#7A5568', margin: '0 0 6px' }}>تأكيد الدخول</p>
               <p style={{ fontSize: 22, fontWeight: 800, color: '#C8005A', margin: '0 0 6px' }}>{preview.guest?.name}</p>
+              {preview.source === 'imported' && (
+                <p style={{ fontSize: 13, color: '#7A5568', margin: '0 0 4px', fontFamily: 'monospace' }}>{preview.guest?.code}</p>
+              )}
 
               {preview.guest?.maxScans > 1 ? (
                 <p style={{ fontSize: 14, color: '#7A5568', margin: '0 0 4px' }}>

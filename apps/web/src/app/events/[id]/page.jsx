@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router';
+import { useParams, useLocation, useNavigate } from 'react-router';
 import { useWebAuth, authFetch } from '../../../utils/webAuth.js';
 
 const LOGO = 'https://dtvoeevhaseb5.cloudfront.net/user-uploads/7881a02c-860c-49fb-be4b-2701f4d65e59.png';
@@ -90,9 +90,12 @@ function DashHeader({ eventName }) {
 
 export default function EventDetailPage() {
   const { id } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const token = useWebAuth((s) => s.token);
 
   const [event, setEvent] = useState(null);
+  const [importedSummary, setImportedSummary] = useState(null); // { total, used, remaining }
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -162,15 +165,25 @@ export default function EventDetailPage() {
       authFetch(`/api/events/${id}`).then(r => r.json()),
       authFetch(`/api/events/${id}/staff`).then(r => r.json()).catch(() => ({ staff: [] })),
       authFetch(`/api/events/${id}/reminders`).then(r => r.json()).catch(() => ({ stats: null })),
-    ]).then(([data, staffData, rData]) => {
+      authFetch(`/api/events/${id}/imported-qr`).then(r => r.json()).catch(() => null),
+    ]).then(([data, staffData, rData, importedData]) => {
       if (data.event) setEvent(data.event);
       if (Array.isArray(data.guests)) setGuests(data.guests);
       if (data.error) setError(data.error);
       if (Array.isArray(staffData.staff)) setStaff(staffData.staff);
       if (rData.stats) setReminderStats(rData.stats);
+      if (importedData && !importedData.error) setImportedSummary(importedData);
     }).catch(() => setError('حدث خطأ في تحميل الفعالية'))
       .finally(() => setLoading(false));
   }, [token, id]);
+
+  // Toast handed over from the import-QR page after a successful apply
+  useEffect(() => {
+    if (location.state?.toast) {
+      setToast(location.state.toast);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state]);
 
   function handleAddGuest(e) {
     e.preventDefault();
@@ -720,6 +733,28 @@ export default function EventDetailPage() {
                   {event?.capacity != null && <div style={{ fontSize: 14, color: T.muted }}>👥 {event.capacity} مدعو</div>}
                   {event?.description && <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7, marginTop: 4 }}>{event.description}</div>}
                 </div>
+                {importedSummary?.total > 0 && (
+                  <a
+                    href={`/events/${id}/import-qr`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginTop: 14,
+                      padding: '10px 12px',
+                      background: T.primarySoft,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: T.primary,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    📊 تحتوي هذه الفعالية على {importedSummary.total} رمز QR مستورد
+                    ({importedSummary.remaining} متبقي)
+                  </a>
+                )}
               </div>
 
               {/* Invitations CTA */}
@@ -752,6 +787,9 @@ export default function EventDetailPage() {
                   </a>
                   <a href={`/events/${id}/edit`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: T.primarySoft, color: T.primary, borderRadius: 12, textDecoration: 'none', fontSize: 14, fontWeight: 600, border: `1px solid ${T.border}` }}>
                     ✏️ تعديل الفعالية
+                  </a>
+                  <a href={`/events/${id}/import-qr`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: T.primarySoft, color: T.primary, borderRadius: 12, textDecoration: 'none', fontSize: 14, fontWeight: 600, border: `1px solid ${T.border}` }}>
+                    📊 استيراد رموز QR
                   </a>
                 </div>
               </div>

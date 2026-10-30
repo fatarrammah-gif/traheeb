@@ -58,7 +58,7 @@ export async function POST(request) {
       `;
 
       if (!qtRows.length) {
-        return { status: 'invalid' };
+        return scanImportedToken(tx, token, eventId);
       }
 
       if (qtRows[0].guest_status === 'declined') {
@@ -112,4 +112,57 @@ export async function POST(request) {
     console.error('[POST /api/qr/scan]', err);
     return Response.json({ error: 'حدث خطأ، حاول مجدداً' }, { status: 500 });
   }
+}
+
+// Fallback for tokens with no matching guest — checks the imported-QR table
+// (tokens the organizer uploaded from an external Excel sheet). Runs inside
+// the same transaction as the guest lookup so the SELECT FOR UPDATE still
+// guards against double-admission races.
+async function scanImportedToken(tx, token, eventId) {
+  const rows = await tx`
+    SELECT * FROM traheeb_imported_qr_tokens
+    WHERE token = ${token} AND event_id = ${eventId}
+    LIMIT 1
+    FOR UPDATE
+  `;
+
+  if (!rows.length) {
+    return { status: 'invalid' };
+  }
+
+  const it = rows[0];
+
+  if (it.used) {
+    return {
+      status: 'already_used',
+      usedAt: it.used_at,
+      source: 'imported',
+      guest: { name: 'بطاقة مستوردة', code: token, companions: 0 },
+    };
+  }
+
+  const newScanCount = (it.scan_count ?? 0) + 1;
+  const maxScans     = it.max_scans ?? 1;
+  const exhausted     = newScanCount >= maxScans;
+
+  await tx`
+    UPDATE traheeb_imported_qr_tokens
+    SET scan_count = ${newScanCount},
+        used     = ${exhausted},
+        used_at  = CASE WHEN ${exhausted} THEN now() ELSE used_at END,
+        scan_log = scan_log || jsonb_build_array(to_jsonb(now()))
+    WHERE id = ${it.id}
+  `;
+
+  return {
+    status: 'valid',
+    source: 'imported',
+    guest: {
+      name: 'بطاقة مستوردة',
+      code: token,
+      companions: 0,
+      scanCount: newScanCount,
+      maxScans,
+    },
+  };
 }

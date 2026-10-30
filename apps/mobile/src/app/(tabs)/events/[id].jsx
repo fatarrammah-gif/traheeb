@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import {
   ArrowLeft,
@@ -27,6 +28,7 @@ import {
   X,
   ImagePlus,
   Send,
+  FileSpreadsheet,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import useEventStore from "@/store/eventStore";
@@ -94,8 +96,21 @@ export default function EventDetail() {
   const [msgImage, setMsgImage] = useState(null); // { uri, base64, mimeType }
   const [sending, setSending] = useState(false);
 
+  // ── Imported QR tokens summary ───────────────────────────────────────────
+  const [importedSummary, setImportedSummary] = useState(null); // { total, used, remaining }
+
+  const fetchImportedSummary = async () => {
+    try {
+      const res = await fetchToWeb(`/api/events/${id}/imported-qr`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setImportedSummary(data);
+    } catch {}
+  };
+
   useEffect(() => {
     fetchEventDetail(id).catch(() => {});
+    fetchImportedSummary();
     // Poll every 10 seconds so guest statuses update automatically
     // when guests reply نعم / لا on WhatsApp
     const interval = setInterval(() => {
@@ -103,6 +118,12 @@ export default function EventDetail() {
     }, 10000);
     return () => clearInterval(interval);
   }, [id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchImportedSummary();
+    }, [id])
+  );
 
   const event = events.find((e) => e.id === id);
   if (!event) {
@@ -575,6 +596,42 @@ export default function EventDetail() {
             دعوة من جهات الاتصال
           </Text>
           <UserPlus size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        {/* Import QR Codes Button */}
+        <TouchableOpacity
+          onPress={() =>
+            router.push({
+              pathname: "/(tabs)/events/import-qr",
+              params: { eventId: event.id },
+            })
+          }
+          style={{
+            backgroundColor: C.muted,
+            borderRadius: 12,
+            padding: 15,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            borderWidth: 1,
+            borderColor: C.border,
+          }}
+          activeOpacity={0.85}
+        >
+          <Text
+            style={{
+              fontFamily: "Inter_600SemiBold",
+              fontSize: 14,
+              color: C.fg,
+            }}
+          >
+            استيراد رموز QR
+            {importedSummary?.total > 0
+              ? ` (${importedSummary.remaining}/${importedSummary.total} متبقي)`
+              : ""}
+          </Text>
+          <FileSpreadsheet size={18} color={C.fg} />
         </TouchableOpacity>
 
         {/* Scanner Button — visible 2h before event */}

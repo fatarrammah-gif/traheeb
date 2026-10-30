@@ -54,7 +54,7 @@ export async function POST(request) {
     `;
 
     if (!rows.length) {
-      return Response.json({ status: 'invalid' });
+      return previewImportedToken(token, eventId);
     }
 
     const qt = rows[0];
@@ -88,4 +88,42 @@ export async function POST(request) {
     console.error('[POST /api/qr/preview]', err);
     return Response.json({ error: 'حدث خطأ، حاول مجدداً' }, { status: 500 });
   }
+}
+
+// Fallback for tokens with no matching guest — checks the imported-QR table
+// (tokens the organizer uploaded from an external Excel sheet).
+async function previewImportedToken(token, eventId) {
+  const rows = await sql`
+    SELECT used, used_at, scan_count, max_scans
+    FROM traheeb_imported_qr_tokens
+    WHERE token = ${token} AND event_id = ${eventId}
+    LIMIT 1
+  `;
+
+  if (!rows.length) {
+    return Response.json({ status: 'invalid' });
+  }
+
+  const it = rows[0];
+
+  if (it.used) {
+    return Response.json({
+      status: 'already_used',
+      usedAt: it.used_at,
+      source: 'imported',
+      guest: { name: 'بطاقة مستوردة', code: token, companions: 0 },
+    });
+  }
+
+  return Response.json({
+    status: 'valid',
+    source: 'imported',
+    guest: {
+      name: 'بطاقة مستوردة',
+      code: token,
+      companions: 0,
+      scanCount: it.scan_count ?? 0,
+      maxScans: it.max_scans ?? 1,
+    },
+  });
 }

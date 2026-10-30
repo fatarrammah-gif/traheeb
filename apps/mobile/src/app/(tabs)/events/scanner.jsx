@@ -184,6 +184,9 @@ export default function ScannerScreen() {
 
             <Text style={styles.confirmTitle}>تأكيد الدخول</Text>
             <Text style={styles.confirmName}>{preview.guest?.name}</Text>
+            {preview.source === 'imported' && (
+              <Text style={styles.confirmCode}>{preview.guest?.code}</Text>
+            )}
 
             {preview.guest?.maxScans > 1 ? (
               <Text style={styles.confirmCompanions}>
@@ -301,6 +304,10 @@ const styles = StyleSheet.create({
   },
   confirmCompanions: {
     fontSize: 14, fontFamily: 'Inter_400Regular',
+    color: '#7A5568', marginBottom: 4,
+  },
+  confirmCode: {
+    fontSize: 13, fontFamily: 'Inter_400Regular',
     color: '#7A5568', marginBottom: 4,
   },
   confirmButtons: {
